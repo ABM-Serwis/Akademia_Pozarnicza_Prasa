@@ -1,0 +1,217 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="fbPassManager" Id="{d89b5525-1a7c-4642-9959-f13aebd7546e}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK fbPassManager
+VAR_INPUT
+	sUserToChange		: WSTRING;
+END_VAR
+VAR_OUTPUT
+END_VAR
+VAR
+	
+	nYear				: REAL;
+	nMonth				: REAL;
+	bInitOK 			: BOOL := FALSE;
+	wsNewPass			: WSTRING(255);
+	wsOldPass			: WSTRING(255);
+	bChangePass			: BOOL;
+	
+END_VAR
+VAR PERSISTENT 
+	
+	nYear_per				: REAL;
+	nMonth_per				: REAL;	
+	
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[ChangePass();]]></ST>
+    </Implementation>
+    <Method Name="ChangePass" Id="{b0cb95e6-7ea9-4abd-8e70-ad46e58cedb6}">
+      <Declaration><![CDATA[METHOD ChangePass : BOOL
+VAR_INST
+	bTimeEnd		: BOOL;
+	tonTimeEnd		: TON;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF NOT bTimeEnd THEN
+	IF THIS^.GetTime()  = 2 THEN
+		IF THIS^.SetPass() THEN
+			tonTimeEnd( IN := FALSE, PT := T#1M);
+			bTimeEnd   := TRUE;
+			ChangePass := TRUE;
+		END_IF
+	ELSE
+		IF THIS^.GetTime()  = 1 THEN
+			tonTimeEnd( IN := FALSE, PT := T#1M);
+			bTimeEnd   := TRUE;			
+		END_IF
+	END_IF
+ELSE
+	tonTimeEnd( IN := TRUE, PT := T#1M);
+	IF tonTimeEnd.Q THEN
+		bTimeEnd := FALSE;
+	END_IF
+	ChangePass := FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="GeneratingPass" Id="{012e5846-3956-4428-b8e0-e22df266645a}">
+      <Declaration><![CDATA[METHOD GeneratingPass : WSTRING
+VAR_INPUT
+	nMonth : REAL;
+	nYear  : REAL;
+END_VAR
+VAR_INST
+		lnPass				: LREAL;
+		lnPass_				: DINT;
+
+		fbFormat			: FB_FormatString;
+		sNewPass			: STRING(255);
+		uiLicznik 			: UINT;
+		wsNewPass_			: WSTRING(255);
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+lnPass := (EXPT(nMonth,4) + 5*nYear) - ( nYear - 1950)* EXPT(( nMonth - 3 ), 3) + ( EXPT( nMonth - 4, 2)*(nYear - 2040) * (nMonth -1))  + 50000;
+lnPass_ := LREAL_TO_DINT(lnPass);
+fbFormat( sFormat := '%d', arg1 := F_DINT(lnPass_), sOut => sNewPass);
+FOR uiLicznik :=0 TO 255 DO
+	wsNewPass_[uiLicznik] := sNewPass[uiLicznik];
+END_FOR
+GeneratingPass := wsNewPass_;
+
+ ]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="GetTime" Id="{639d54ad-dc2b-4551-a06e-5e1513e5c6b5}">
+      <Declaration><![CDATA[METHOD GetTime : UINT
+VAR_INPUT
+END_VAR
+VAR_INST
+	fbGetTime	: NT_GetTime;
+	bStart		: BOOL;
+	nStan		: UINT := 0;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF NOT bStart THEN
+	bStart 	:= TRUE;
+	nStan  	:= 10;
+	GetTime := 0;
+ELSE
+	CASE nStan OF 
+		0:
+			fbGetTime( NETID := '', Start := FALSE);
+			GetTime := 0;
+		10 :
+			fbGetTime( NETID := '', Start := TRUE);
+			GetTime := 0;
+			IF NOT fbGetTime.BUSY THEN
+				nStan  := 20;
+			END_IF	
+		
+		20 :
+			nYear   := WORD_TO_UINT(fbGetTime.TIMESTR.wYear);
+			nMonth  := WORD_TO_UINT(fbGetTime.TIMESTR.wMonth);
+			nStan   := 0;
+			bStart  := FALSE;
+			IF nYear = nYear_per AND nMonth = nMonth_per THEN
+				GetTime := 1;
+			ELSE
+				nYear_per := nYear;
+				nMonth_per  := nMonth;
+				GetTime := 2;
+			END_IF
+			
+	END_CASE
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="SetPass" Id="{6e3823e8-2576-4f7d-a196-b2e6cf5d9823}">
+      <Declaration><![CDATA[METHOD SetPass : BOOL
+VAR_INPUT
+END_VAR
+VAR_INST
+	pClient				: POINTER TO VisuElems.VisuStructClientData; 
+	fbVisuUserMgmt		: VisuUserManagement.VisuUserMgmt;
+	dwUserDB			: DWORD;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[wsNewPass := THIS^.GeneratingPass( nMonth := nMonth ,nYear := nYear ) ;
+fbVisuUserMgmt();
+dwUserDB := fbVisuUserMgmt.GetUserDBAsCopy();
+fbVisuUserMgmt.ChangeUserPassword(dwUserDB,sUserToChange, wsNewPass, "");
+fbVisuUserMgmt.SetNewUserDB( dwUserDB := dwUserDB,bResultOK := TRUE);
+SetPass := TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="fbPassManager">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="fbPassManager.ChangePass">
+      <LineId Id="38" Count="0" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="37" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="48" Count="1" />
+      <LineId Id="52" Count="0" />
+      <LineId Id="50" Count="1" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="45" Count="2" />
+      <LineId Id="40" Count="1" />
+    </LineIds>
+    <LineIds Name="fbPassManager.GeneratingPass">
+      <LineId Id="10" Count="0" />
+      <LineId Id="49" Count="0" />
+      <LineId Id="52" Count="0" />
+      <LineId Id="18" Count="0" />
+      <LineId Id="23" Count="1" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="6" Count="0" />
+    </LineIds>
+    <LineIds Name="fbPassManager.GetTime">
+      <LineId Id="9" Count="0" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="89" Count="0" />
+      <LineId Id="94" Count="0" />
+      <LineId Id="75" Count="0" />
+      <LineId Id="15" Count="1" />
+      <LineId Id="18" Count="1" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="95" Count="0" />
+      <LineId Id="64" Count="0" />
+      <LineId Id="69" Count="0" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="70" Count="0" />
+      <LineId Id="72" Count="1" />
+      <LineId Id="90" Count="1" />
+      <LineId Id="85" Count="0" />
+      <LineId Id="87" Count="0" />
+      <LineId Id="86" Count="0" />
+      <LineId Id="92" Count="1" />
+      <LineId Id="55" Count="0" />
+      <LineId Id="77" Count="0" />
+      <LineId Id="88" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="76" Count="0" />
+    </LineIds>
+    <LineIds Name="fbPassManager.SetPass">
+      <LineId Id="140" Count="0" />
+      <LineId Id="90" Count="1" />
+      <LineId Id="128" Count="1" />
+      <LineId Id="103" Count="0" />
+      <LineId Id="73" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,85 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="FB_PositionOffset_4_20mA" Id="{5455ebe7-3239-47b9-a6ed-43440d6c4f4c}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_PositionOffset_4_20mA
+VAR_INPUT
+    Enable      : BOOL := TRUE;
+
+    (* Sygnał z wejścia analogowego w mA (engineering units) *)
+    In_mA        : REAL;
+
+    (* Przycisk SET ZERO *)
+    SetZero      : BOOL;
+
+    (* Parametry liniału / skalowania *)
+    Range_mm     : REAL := 125.0;   (* pełny zakres liniału *)
+    mA_Min       : REAL := 4.0;
+    mA_Max       : REAL := 20.0;
+
+    (* Opcjonalnie: tolerancja do diagnostyki (np. 0.2 mA) *)
+    Tol_mA       : REAL := 0.2;
+END_VAR
+
+VAR_OUTPUT
+    Pos_mm           : REAL;    (* pozycja surowa 0..Range_mm *)
+    PosZeroed_mm     : REAL;    (* pozycja z ofsetem (zero) *)
+    Offset_mm        : REAL;    (* zapamiętany ofset *)
+
+    InRange          : BOOL;    (* sygnał w rozsądnym zakresie *)
+    UnderRange       : BOOL;    (* poniżej 4mA - Tol *)
+    OverRange        : BOOL;    (* powyżej 20mA + Tol *)
+END_VAR
+
+VAR
+    rTrigSetZero : R_TRIG;
+    span_mA      : REAL;
+    norm         : REAL;
+    inClamped    : REAL;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(* --- wykonanie --- *)
+IF NOT Enable THEN
+    Pos_mm := 0.0;
+    PosZeroed_mm := 0.0;
+    (* Offset pozostawiamy bez zmian *)
+    InRange := FALSE;
+    UnderRange := FALSE;
+    OverRange := FALSE;
+    RETURN;
+END_IF
+
+span_mA := mA_Max - mA_Min;
+
+(* Diagnostyka zakresu (z tolerancją) *)
+UnderRange := (In_mA < (mA_Min - Tol_mA));
+OverRange  := (In_mA > (mA_Max + Tol_mA));
+InRange    := NOT(UnderRange OR OverRange);
+
+(* Clamp sygnału do 4..20 mA, żeby wynik mm nie uciekał *)
+inClamped := In_mA;
+IF inClamped < mA_Min THEN inClamped := mA_Min; END_IF
+IF inClamped > mA_Max THEN inClamped := mA_Max; END_IF
+
+(* Skalowanie 4..20 mA -> 0..Range_mm *)
+IF span_mA <= 0.0 THEN
+    Pos_mm := 0.0;
+ELSE
+    norm := (inClamped - mA_Min) / span_mA;   (* 0..1 *)
+    Pos_mm := norm * Range_mm;               (* 0..Range *)
+END_IF
+
+(* Set Zero na zboczu narastającym *)
+rTrigSetZero(CLK := SetZero);
+IF rTrigSetZero.Q THEN
+    Offset_mm := Pos_mm;  (* zapamiętaj aktualną pozycję jako "zero" *)
+END_IF
+
+(* Pozycja z ofsetem *)
+PosZeroed_mm := Pos_mm - Offset_mm;]]></ST>
+    </Implementation>
+    <LineIds Name="FB_PositionOffset_4_20mA">
+      <LineId Id="43" Count="37" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

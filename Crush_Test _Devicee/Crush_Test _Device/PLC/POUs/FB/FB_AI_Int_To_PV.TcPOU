@@ -1,0 +1,49 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="FB_AI_Int_To_PV" Id="{7f4e51f1-2668-4f53-abbb-0d887f4c2d47}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_AI_Int_To_PV
+VAR_INPUT
+    InRaw    : INT;   // z karty
+    InMin    : INT;   // np. 0
+    InMax    : INT;   // np. 32767
+
+    PV_Min   : REAL;  // np. 0.0 bar
+    PV_Max   : REAL;  // np. 10.0 bar
+END_VAR
+
+VAR_OUTPUT
+    PV_Value   : REAL;  // w jednostkach fizycznych
+    PV_Percent : REAL;  // 0–100 %
+    ErrorConfig: BOOL;
+END_VAR
+
+VAR
+    ratio   : LREAL;
+    pv      : LREAL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF InMax <= InMin THEN
+    ErrorConfig := TRUE;
+    PV_Value    := PV_Min;
+    PV_Percent  := 0.0;
+ELSE
+    ErrorConfig := FALSE;
+
+    // 0..1
+    ratio := (INT_TO_LREAL(InRaw) - INT_TO_LREAL(InMin)) / (INT_TO_LREAL(InMax) - INT_TO_LREAL(InMin));
+    IF ratio < 0.0 THEN ratio := 0.0; END_IF;
+    IF ratio > 1.0 THEN ratio := 1.0; END_IF;
+
+    // do PV_Min..PV_Max
+    pv        := (PV_Min) + ratio * ((PV_Max) - (PV_Min));
+    PV_Value  := (*INT_TO_REAL*)(pv);
+    PV_Percent:= LREAL_TO_REAL(ratio * 100.0);
+END_IF;]]></ST>
+    </Implementation>
+    <LineIds Name="FB_AI_Int_To_PV">
+      <LineId Id="28" Count="15" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

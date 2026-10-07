@@ -1,0 +1,521 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.16">
+  <POU Name="FB_HydraulicPress_WithBreakthroughDetection_1" Id="{cca3d40c-02fb-4e81-a746-b25deb7333a1}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_HydraulicPress_WithBreakthroughDetection_1
+VAR_INPUT
+    Enable              : BOOL;       // Włączenie całego układu
+    Mode_Manual         : BOOL;       // TRUE = tryb ręczny, FALSE = tryb automatyczny
+    Cmd_Up_Manual       : BOOL;       // Przycisk ręczny "Góra" / start AUTO
+    Cmd_Down_Manual     : BOOL;       // Przycisk ręczny "Dół"
+
+    Pressure_Setpoint_Manual : REAL; // Zadane ciśnienie w trybie ręcznym [bar]
+    Pressure_Min_Auto   : REAL := 20.0;   // Ciśnienie startowe w trybie auto [bar]
+    Pressure_Max_Auto   : REAL := 180.0;  // Ciśnienie docelowe w trybie auto [bar]
+
+    Position_Actual     : REAL;       // Pozycja tłoczyska [mm]
+    Pressure_Actual     : REAL;       // Ciśnienie aktualne [bar]
+
+    // Parametry detekcji przebicia (ciśnienie)
+    Breakthrough_DeltaPress : REAL := 15.0; // Spadek ciśnienia [bar]
+    Breakthrough_DeltaPos   : REAL := 2.0;  // Przyrost pozycji [mm]
+    Breakthrough_TimeWindow : TIME := T#150MS; // Okno czasowe analizy
+    Ramp_Time                : TIME := T#10000MS; // Czas rampy AUTO min→max
+
+    //------------------------------------------------------------------
+    // Tryb siły. Domyślnie FALSE — dotychczasowe sterowanie ciśnieniem.
+    //------------------------------------------------------------------
+    Mode_Force               : BOOL := FALSE; // FALSE = ciśnienie, TRUE = siła
+    Force_Setpoint_Manual    : REAL := 0.0;   // Drugi setpoint, ręczny [t]
+    Force_Min_Auto           : REAL := 0.0;   // Siła początkowa AUTO [t]
+    Force_Max_Auto           : REAL := 0.0;   // Siła docelowa AUTO [t]
+    Force_Input_V            : REAL := 0.0;   // AI 0–10 V; roboczo 0–2,5 V
+    Force_Range_100t         : BOOL := FALSE; // FALSE = 50 t, TRUE = 100 t
+    Breakthrough_DeltaForce  : REAL := 0.0;   // Spadek siły [t]
+END_VAR
+
+VAR_OUTPUT
+    Valve_Proportional  : REAL;    // Zawsze komenda zaworu w barach (0..350), nie w tonach
+    Coil_Up             : BOOL;
+    Coil_Down           : BOOL;
+    Valve_Relief        : BOOL;    // Odciążający – otwarty gdy jest ruch w górę
+    Active              : BOOL;
+    Auto_Active         : BOOL;    // Czy trwa cykl automatyczny
+    Breakthrough_Detected : BOOL;  // Przebicie materiału wykryte
+    Press_At_Break      : REAL;    // Ciśnienie w momencie przebicia [bar]
+    Pos_At_Break        : REAL;    // Pozycja w momencie przebicia
+    Pos_At_Start        : REAL;    // Pozycja w momencie startu
+    Alarm               : BOOL;
+
+    Force_Actual_t      : REAL;
+    Force_Actual_kg     : REAL;    // kgf
+    Force_Actual_N      : REAL;
+    Force_Actual_kN     : REAL;
+    Force_pct           : REAL;
+    Force_FullScale_t   : REAL;    // 50 albo 100
+    Force_At_Break      : REAL;    // t, w chwili przebicia
+    Force_At_Break_kg   : REAL;
+    Force_At_Break_N    : REAL;
+    Force_At_Break_kN   : REAL;
+    Force_SensorOk      : BOOL;
+    Force_Overrange     : BOOL;    // U > 2,55 V
+    Force_Underrange    : BOOL;    // U < -0,05 V
+    Force_SetpointLimited : BOOL;  // setpoint obcięty do 0..zakres albo ujemna delta
+    Force_CfgFault      : BOOL;    // AutoMin > AutoMax
+    Force_Target        : REAL;    // bieżące zadanie siły [t], 0 w trybie ciśnienia
+    Force_Setpoint_Manual_Eff : REAL;
+    Force_Min_Auto_Eff  : REAL;
+    Force_Max_Auto_Eff  : REAL;
+    Breakthrough_DeltaForce_Eff : REAL;
+    Motion_Hold         : BOOL;    // zmiana trybu/zakresu w ruchu — puść przyciski
+END_VAR
+
+VAR
+    //------------------------------------------------------------------
+    // Rampa ciśnienia w AUTO – na zadany czas Ramp_Time
+    //------------------------------------------------------------------
+    Ramp_Timer          : TON;
+    Ramp_Active         : BOOL;
+    Ramp_Progress       : REAL;                  // 0.0 .. 1.0
+    Pressure_Auto_Setpoint : REAL;              // Zadane ciśnienie w AUTO
+
+    // Zmienne wewnętrzne
+    State               : INT := 0;        // 0=Stop, 1=Up, 2=Down
+    Pressure_Target     : REAL;
+    Output_Raw          : REAL;
+
+    // Detekcja przebicia
+    Press_Prev          : REAL;
+    Pos_Prev            : REAL;
+    Press_Delta         : REAL;
+    Pos_Delta           : REAL;
+    Timer_Breakthrough  : TON;
+    Breakthrough_Trigger: BOOL;
+
+    // Zapis wartości przy przebiciu
+    Press_At_Break_Int  : REAL;
+    Pos_At_Break_Int    : REAL;
+    Force_At_Break_Int  : REAL;
+
+    // Do wykrywania zbocza startu AUTO
+    Cmd_Up_Manual_Prev  : BOOL;
+    rtAuto_Active: R_TRIG;
+    fbBlink2: FB_Blink_S_1;
+
+    // Siła
+    fbForceScale        : FB_ScaleStrainGaugeForce;
+    ValveCmd_Force      : REAL;     // komenda zaworu [bar] w trybie siły
+    Mode_Force_Prev     : BOOL;
+    Force_Range_Prev    : BOOL;
+    bForceSensorFault   : BOOL;
+    rPv                 : REAL;     // wielkość do detekcji: bar albo t
+    rDeltaLim           : REAL;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[// Pomiar siły. Kanał jest 0–10 V, przetwornik pracuje tylko w 0–2,5 V.
+// 2,5 V = 50 t albo 100 t. Napięcie 5 V / 10 V to błąd, nie większa siła.
+// Pomiar jest liczony także w trybie ciśnienia (podgląd na HMI).
+//==========================================================================
+fbForceScale(
+    U_V         := Force_Input_V,
+    Range_100t  := Force_Range_100t,
+    Force_t     => Force_Actual_t,
+    Force_kg    => Force_Actual_kg,
+    Force_N     => Force_Actual_N,
+    Force_kN    => Force_Actual_kN,
+    FullScale_t => Force_FullScale_t,
+    Force_pct   => Force_pct,
+    SensorOk    => Force_SensorOk,
+    Overrange   => Force_Overrange,
+    Underrange  => Force_Underrange);
+
+Force_SetpointLimited := FALSE;
+Force_Setpoint_Manual_Eff := Force_Setpoint_Manual;
+Force_Min_Auto_Eff := Force_Min_Auto;
+Force_Max_Auto_Eff := Force_Max_Auto;
+Breakthrough_DeltaForce_Eff := Breakthrough_DeltaForce;
+
+IF Force_Setpoint_Manual_Eff < 0.0 THEN
+    Force_Setpoint_Manual_Eff := 0.0;
+    Force_SetpointLimited := TRUE;
+ELSIF Force_Setpoint_Manual_Eff > Force_FullScale_t THEN
+    Force_Setpoint_Manual_Eff := Force_FullScale_t;
+    Force_SetpointLimited := TRUE;
+END_IF
+
+IF Force_Min_Auto_Eff < 0.0 THEN
+    Force_Min_Auto_Eff := 0.0;
+    Force_SetpointLimited := TRUE;
+ELSIF Force_Min_Auto_Eff > Force_FullScale_t THEN
+    Force_Min_Auto_Eff := Force_FullScale_t;
+    Force_SetpointLimited := TRUE;
+END_IF
+
+IF Force_Max_Auto_Eff < 0.0 THEN
+    Force_Max_Auto_Eff := 0.0;
+    Force_SetpointLimited := TRUE;
+ELSIF Force_Max_Auto_Eff > Force_FullScale_t THEN
+    Force_Max_Auto_Eff := Force_FullScale_t;
+    Force_SetpointLimited := TRUE;
+END_IF
+
+IF Breakthrough_DeltaForce_Eff < 0.0 THEN
+    Breakthrough_DeltaForce_Eff := 0.0 - Breakthrough_DeltaForce_Eff;
+    Force_SetpointLimited := TRUE;
+END_IF
+
+Force_CfgFault := Force_Min_Auto_Eff > Force_Max_Auto_Eff;
+bForceSensorFault := Mode_Force AND NOT Force_SensorOk;
+
+IF Mode_Force THEN
+    rPv := Force_Actual_t;
+    rDeltaLim := Breakthrough_DeltaForce_Eff;
+ELSE
+    rPv := Pressure_Actual;
+    rDeltaLim := Breakthrough_DeltaPress;
+    Force_Target := 0.0;
+END_IF
+
+//==========================================================================
+// Główna logika
+//==========================================================================
+Active := Enable;
+Breakthrough_Detected := Breakthrough_Trigger; // latch na zewnątrz
+
+IF NOT Enable THEN
+    Coil_Up := FALSE;
+    Coil_Down := FALSE;
+    Valve_Relief := FALSE;
+    Valve_Proportional := 0.0;
+    Auto_Active := FALSE;
+    Alarm := FALSE;
+    Breakthrough_Trigger := FALSE;
+    State := 0;
+
+    // Reset rampy
+    Ramp_Active := FALSE;
+    Ramp_Progress := 0.0;
+    Ramp_Timer(IN := FALSE, PT := Ramp_Time);
+
+    Cmd_Up_Manual_Prev := FALSE;
+    ValveCmd_Force := 0.0;
+    Motion_Hold := FALSE;
+    Mode_Force_Prev := Mode_Force;
+    Force_Range_Prev := Force_Range_100t;
+    Force_Target := 0.0;
+    RETURN;
+END_IF
+
+//------------------------------------------------------------------
+// Zmiana trybu albo zakresu tensometru.
+// W ruchu: postój, dopóki przyciski nie zostaną puszczone.
+// Dzięki temu skok 50 t ↔ 100 t nie jest traktowany jak przebicie.
+//------------------------------------------------------------------
+IF (Mode_Force <> Mode_Force_Prev) OR (Force_Range_100t <> Force_Range_Prev) THEN
+    IF Cmd_Up_Manual OR Cmd_Down_Manual OR Auto_Active OR (State <> 0) THEN
+        Motion_Hold := TRUE;
+    END_IF
+    State := 0;
+    Auto_Active := FALSE;
+    Ramp_Active := FALSE;
+    Ramp_Progress := 0.0;
+    ValveCmd_Force := 0.0;
+    Breakthrough_Trigger := FALSE;
+    Pressure_Target := 0.0;
+    Press_Prev := rPv;
+    Pos_Prev := Position_Actual;
+END_IF
+Mode_Force_Prev := Mode_Force;
+Force_Range_Prev := Force_Range_100t;
+
+//------------------------------------------------------------------
+// 1. Tryb ręczny / automatyczny
+//------------------------------------------------------------------
+IF Mode_Manual THEN
+    // ------------------- TRYB RĘCZNY -------------------
+    Auto_Active := FALSE;
+    Breakthrough_Trigger := FALSE;
+
+    IF Cmd_Up_Manual AND NOT Cmd_Down_Manual THEN
+        IF bForceSensorFault THEN
+            // Zły tensometr: nie budujemy siły. Dół (poniżej) zostaje dozwolony.
+            State := 0;
+            Pressure_Target := 0.0;
+            Alarm := TRUE;
+        ELSE
+            State := 1;
+            IF Mode_Force THEN
+                // Zawór prowadzi pętla siły. Tony nie idą na wyjście proporcjonalne.
+                Pressure_Target := 0.0;
+            ELSE
+                Pressure_Target := Pressure_Setpoint_Manual;
+            END_IF
+        END_IF
+    ELSIF Cmd_Down_Manual AND NOT Cmd_Up_Manual THEN
+        State := 2;
+        Pressure_Target := 0.0;            // przy opuszczaniu zamykamy reduktor
+    ELSE
+        State := 0;
+        Pressure_Target := 0.0;
+    END_IF
+
+    // W ręcznym rampa AUTO nieaktywna
+    Ramp_Active := FALSE;
+    Ramp_Progress := 0.0;
+    IF NOT Mode_Force THEN
+        Ramp_Timer(IN := FALSE, PT := Ramp_Time);
+    END_IF
+
+ELSE
+    // ------------------- TRYB AUTOMATYCZNY -------------------
+    // Start cyklu po zboczu narastającym Cmd_Up_Manual (dwuręczny / start AUTO)
+    IF (Cmd_Up_Manual AND NOT Cmd_Up_Manual_Prev) AND NOT Breakthrough_Trigger THEN
+        IF Mode_Force AND bForceSensorFault THEN
+            Alarm := TRUE;
+        ELSIF Mode_Force AND Force_CfgFault THEN
+            Alarm := TRUE;
+        ELSIF NOT Motion_Hold THEN
+            Auto_Active := TRUE;
+            State := 1;                         // jedziemy w górę
+
+            // Start rampy
+            Ramp_Active := TRUE;
+            Ramp_Progress := 0.0;
+            IF Mode_Force THEN
+                Force_Target := Force_Min_Auto_Eff;
+                ValveCmd_Force := 0.0;
+            ELSE
+                Pressure_Auto_Setpoint := Pressure_Min_Auto;
+            END_IF
+            IF NOT Mode_Force THEN
+                Ramp_Timer(IN := FALSE, PT := Ramp_Time); // reset timera
+            END_IF
+        END_IF
+    ELSE
+        IF Breakthrough_Trigger OR bForceSensorFault OR (Mode_Force AND Force_CfgFault AND Auto_Active) THEN
+            State := 0;                     // zatrzymujemy po przebiciu / błędzie siły
+            Auto_Active := FALSE;
+            Ramp_Active := FALSE;
+            IF NOT Mode_Force THEN
+                Ramp_Timer(IN := FALSE, PT := Ramp_Time);
+            END_IF
+            IF bForceSensorFault OR (Mode_Force AND Force_CfgFault) THEN
+                Alarm := TRUE;
+            END_IF
+        END_IF
+        IF NOT Mode_Force THEN
+            IF Scaling.PressureAI.PV_Value>=GVL_HMI.PressureSetpointAutoMax THEN
+                Ramp_Active := FALSE;
+                Ramp_Timer(IN := FALSE, PT := Ramp_Time);
+            END_IF
+        ELSIF Force_SensorOk AND (Force_Actual_t >= Force_Max_Auto_Eff) AND (Force_Max_Auto_Eff > 0.0) THEN
+            // Odpowiednik wczesnego końca rampy: siła doszła do zadania AUTO.
+            Ramp_Active := FALSE;
+        END_IF
+    END_IF
+END_IF
+
+// Postój po zmianie trybu lub zakresu, dopóki przyciski są trzymane.
+IF Motion_Hold THEN
+    State := 0;
+    Auto_Active := FALSE;
+    Ramp_Active := FALSE;
+    Pressure_Target := 0.0;
+    ValveCmd_Force := 0.0;
+    IF NOT Cmd_Up_Manual AND NOT Cmd_Down_Manual THEN
+        Motion_Hold := FALSE;
+    END_IF
+END_IF
+
+//------------------------------------------------------------------
+// 2. Sterowanie kierunkiem i odciążającym
+//------------------------------------------------------------------
+Coil_Up   := (State = 1);
+Coil_Down := (State = 2);
+Valve_Relief := Coil_Up;   // zawór odciążający tylko przy ruchu w górę
+
+//------------------------------------------------------------------
+// 3. Zadane ciśnienie albo pętla siły
+//    Wyjście zaworu w obu trybach jest w barach (potem 0..400 bar → 4..20 mA).
+//    Krok 0,1 i sufit 350 bar są takie same jak dotychczasowy trym ciśnienia.
+//------------------------------------------------------------------
+IF Mode_Force THEN
+    IF (State = 1) AND NOT bForceSensorFault THEN
+        IF Auto_Active AND Ramp_Active THEN
+            Ramp_Timer(IN := TRUE, PT := Ramp_Time);
+
+            IF Ramp_Time > T#0s THEN
+                Ramp_Progress := TIME_TO_REAL(Ramp_Timer.ET) / TIME_TO_REAL(Ramp_Time);
+                IF Ramp_Progress >= 1.0 THEN
+                    Ramp_Progress := 1.0;
+                    Ramp_Active := FALSE;
+                END_IF
+            ELSE
+                Ramp_Progress := 1.0;
+                Ramp_Active := FALSE;
+            END_IF
+
+            Force_Target := Force_Min_Auto_Eff
+                + (Force_Max_Auto_Eff - Force_Min_Auto_Eff) * Ramp_Progress;
+        ELSIF Auto_Active THEN
+            Force_Target := Force_Max_Auto_Eff;
+            Ramp_Timer(IN := FALSE, PT := Ramp_Time);
+        ELSE
+            // Ręczny ruch w górę — trzymamy setpoint siły.
+            Force_Target := Force_Setpoint_Manual_Eff;
+            Ramp_Timer(IN := FALSE, PT := Ramp_Time);
+        END_IF
+
+        // Pętla: komenda w barach goni zmierzoną siłę do Force_Target.
+        IF Force_Actual_t > Force_Target THEN
+            ValveCmd_Force := ValveCmd_Force - 0.1;
+        END_IF
+        IF ValveCmd_Force <= 0.0 THEN
+            ValveCmd_Force := 0.0;
+        END_IF
+        IF Force_Actual_t < Force_Target THEN
+            ValveCmd_Force := ValveCmd_Force + 0.1;
+        END_IF
+        IF ValveCmd_Force >= 350.0 THEN
+            ValveCmd_Force := 350.0;
+        END_IF
+
+        Output_Raw := ValveCmd_Force;
+    ELSE
+        Ramp_Timer(IN := FALSE, PT := Ramp_Time);
+        Ramp_Active := FALSE;
+        Ramp_Progress := 0.0;
+        ValveCmd_Force := 0.0;
+        Force_Target := 0.0;
+        Output_Raw := 0.0;
+    END_IF
+ELSE
+    // ------------------- TRYB CIŚNIENIA (bez zmian) -------------------
+    IF Auto_Active AND State = 1 THEN
+        IF Ramp_Active THEN
+            // Timer rampy – pracuje tylko w czasie narastania
+            Ramp_Timer(IN := TRUE, PT := Ramp_Time);
+
+            IF Ramp_Time > T#0s THEN
+                // Postęp rampy 0..1
+                Ramp_Progress := TIME_TO_REAL(Ramp_Timer.ET) / TIME_TO_REAL(Ramp_Time);
+                IF Ramp_Progress >= 1.0 THEN
+                    Ramp_Progress := 1.0;
+                    Ramp_Active := FALSE;      // rampa zakończona
+                END_IF
+            ELSE
+                // Jeśli Ramp_Time = 0 → od razu max
+                Ramp_Progress := 1.0;
+                Ramp_Active := FALSE;
+            END_IF
+
+            // Liniowa rampa min→max w czasie Ramp_Time
+            Pressure_Auto_Setpoint := Pressure_Min_Auto
+                                    + (Pressure_Max_Auto - Pressure_Min_Auto) * Ramp_Progress;
+        ELSE
+            // Po zakończeniu rampy trzymamy max ciśnienie
+            IF Pressure_Actual>Pressure_Max_Auto THEN
+                Pressure_Auto_Setpoint:=Pressure_Auto_Setpoint-0.1;
+            END_IF
+            IF Pressure_Auto_Setpoint<=0 THEN
+                Pressure_Auto_Setpoint:=0;
+            END_IF
+
+            IF Pressure_Actual<Pressure_Max_Auto THEN
+                Pressure_Auto_Setpoint:=Pressure_Auto_Setpoint+0.1;
+            END_IF
+            IF Pressure_Auto_Setpoint>=350 THEN
+                Pressure_Auto_Setpoint:=350;
+            END_IF
+
+            //Pressure_Auto_Setpoint := Pressure_Max_Auto;
+            Ramp_Timer(IN := FALSE, PT := Ramp_Time);
+        END_IF
+
+        Output_Raw := Pressure_Auto_Setpoint;
+
+    ELSE
+        // Poza AUTO lub brak ruchu w górę – rampa nie pracuje
+        Ramp_Timer(IN := FALSE, PT := Ramp_Time);
+        Ramp_Active := FALSE;
+        Ramp_Progress := 0.0;
+
+        Output_Raw := Pressure_Target;
+    END_IF
+END_IF
+
+// Tu możesz ewentualnie dodać LIMIT na Output_Raw → np. 0..100%
+Valve_Proportional := Output_Raw;
+//Valve_Proportional := LIMIT(4.0, Output_Raw, 20.0);
+
+//------------------------------------------------------------------
+// 4. Detekcja przebicia materiału
+//    Ciśnienie: spadek barów. Siła: spadek ton. Pozycja jest wspólna.
+//    Przy złym tensometrze w trybie siły detekcja stoi — 0 V albo 10 V
+//    nie może zostać uznane za przebicie.
+//------------------------------------------------------------------
+IF (State = 1) AND (NOT Mode_Force OR Force_SensorOk) THEN
+    Press_Delta := Press_Prev - rPv;   // spadek = dodatnia wartość
+    Pos_Delta   := Position_Actual - Pos_Prev;
+
+    IF (Press_Delta > rDeltaLim) AND (Pos_Delta > Breakthrough_DeltaPos) THEN
+        Timer_Breakthrough(IN := TRUE, PT := Breakthrough_TimeWindow);
+        IF Timer_Breakthrough.Q THEN
+            Breakthrough_Trigger := TRUE;
+            IF Mode_Force THEN
+                Force_At_Break_Int := Force_Actual_t + (Press_Delta / 2.0);
+            ELSE
+                Press_At_Break_Int := Pressure_Actual + (Press_Delta / 2.0);
+                Force_At_Break_Int := Force_Actual_t;
+            END_IF
+            Pos_At_Break_Int   := Position_Actual - (Pos_Delta / 2.0);
+        END_IF
+    ELSE
+        Timer_Breakthrough(IN := FALSE);
+    END_IF
+ELSE
+    Timer_Breakthrough(IN := FALSE);
+    Breakthrough_Trigger := FALSE;   // reset przy nowym cyklu (ew. pod inny warunek)
+END_IF
+
+// Przechowanie wartości na zewnątrz
+Press_At_Break := Press_At_Break_Int;
+Pos_At_Break   := Pos_At_Break_Int;
+Force_At_Break := Force_At_Break_Int;
+Force_At_Break_kg := Force_At_Break_Int * 1000.0;
+Force_At_Break_N := Force_At_Break_kg * 9.80665; // 1 kgf = 9,80665 N — to samo co FB_ScaleStrainGaugeForce
+Force_At_Break_kN := Force_At_Break_N / 1000.0;
+
+fbBlink2(Tv:= Breakthrough_TimeWindow , Q=> );///?????????????????????
+// Zapis na następny cykl
+IF fbBlink2.Q THEN
+    Press_Prev := rPv;
+    Pos_Prev   := Position_Actual;
+END_IF
+//------------------------------------------------------------------
+// 5. Zatrzymanie po przebiciu i alarmy
+//------------------------------------------------------------------
+IF Breakthrough_Trigger THEN
+    State := 0;
+    Auto_Active := FALSE;
+    Alarm := TRUE;
+END_IF
+
+//------------------------------------------------------------------
+// 6. Zapamiętanie stanu przycisku (zbocze narastające)
+//------------------------------------------------------------------
+Cmd_Up_Manual_Prev := Cmd_Up_Manual;
+//------------------------------------------------------------------
+//	7.	Zapamiętanie pozycji startowej
+rtAuto_Active(CLK:=Auto_Active , Q=> );
+
+IF rtAuto_Active.Q THEN
+    Pos_At_Start:=Position_Actual;
+END_IF
+]]></ST>
+    </Implementation>
+    <LineIds Name="FB_HydraulicPress_WithBreakthroughDetection_1">
+      <LineId Id="117" Count="399" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

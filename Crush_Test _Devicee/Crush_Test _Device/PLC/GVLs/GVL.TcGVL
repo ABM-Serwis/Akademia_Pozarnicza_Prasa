@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <GVL Name="GVL" Id="{b4fd9903-b319-4464-aeed-6e3f377e037d}">
+    <Declaration><![CDATA[//{attribute 'qualified_only'}
+VAR_GLOBAL
+	AlwaysFalse					:BOOL;
+	
+	bControlOn					: BOOL;//kluczyk-sterowanie załączone
+	bTopPreserCmdUp				: BOOL;//przycisk kolumna dociskowa do góry
+	bTopPreserCmdDown			: BOOL;//przycisk kolumna dociskowa do dołu
+	bCycleStartCmd				: BOOL;//przycisk start cyklu
+	bCycleStopCmd				: BOOL;//przycisk stop cyklu
+	bCylinderCmdUp				: BOOL;//przycisk siłownik do góry
+	bCylinderCmdDown			: BOOL;//przycisk siłownik do góry
+	bHydraulicUnitCmdStart		: BOOL;//przycisk agregat hydrauliczny start
+	nHydraulicPressureRaw		: REAL;//ciśnienie hydrauliki-wejście analogowe
+	nCylinderPositionRaw		: REAL;//pozycja siłownika-wejście analogowe
+	nHydraulicPressureOut		: REAL;//cisnienie zadane na wyjscie analogowe
+	bHydraulicUnitOn			: BOOL;//pottwierdzenie załączenia silnika hydrauliki z softstart
+	bTopPreserClosed			: BOOL;//potwierdzenie zamknięcia docisku górnego
+	bTopPreserMotorOk			: BOOL;//termik silnika docisku górnego
+	bHydraulicUnitMotorOk		: BOOL;//termik silnika hydrauliki
+	bHydraulicUnitCmdStop		: BOOL;//przycisk agregat hydrauliczny stop
+	bOilLevelOk					: BOOL;//poziom oleju	
+	bHydraulicUnitRunning       : BOOL;//softstart hydrauliki załączony
+	
+	bTopPreserUp				: BOOL;// wyjście -docisk górny do góry
+	bTopPreserDown				: BOOL;// wyjście -docisk górny do dołu
+	bHydraulicUintOn			: BOOL;// wyjście -załączenie agregatu hydraulicznego
+	bLedCycleOn					: BOOL;// wyjście -LED cykl załączony
+	bReliefValveOn				: BOOL;// wyjście -zawór odciążający załączony
+	bCylinderValveUp			: BOOL;// wyjście -zawór siłownik do góry
+	bCylinderValveDown			: BOOL;// wyjście -zawór siłownik do dołu
+	bProportionalValveEnable	: BOOL;// wyjście -zawór proporcjonalny załączony	
+	bLedHydraulicUnitOn			: BOOL;// wyjście -LED hydraulika załączona
+	
+	
+	
+
+	nHydraulicPressureOut0_10V: LREAL;
+END_VAR
+]]></Declaration>
+  </GVL>
+</TcPlcObject>

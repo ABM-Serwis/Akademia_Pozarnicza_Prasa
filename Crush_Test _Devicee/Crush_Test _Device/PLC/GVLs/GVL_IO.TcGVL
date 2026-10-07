@@ -1,0 +1,53 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <GVL Name="GVL_IO" Id="{14f4fa60-8a83-47c4-818c-5db9652796e3}">
+    <Declaration><![CDATA[//{attribute 'qualified_only'}
+VAR_GLOBAL
+//---------------------------------------------	
+// EK 1818
+
+	DI1_1 AT %I*: BOOL;
+	DI1_2 AT %I*: BOOL;
+	DI1_3 AT %I*: BOOL;
+	DI1_4 AT %I*: BOOL;
+	DI1_5 AT %I*: BOOL;
+	DI1_6 AT %I*: BOOL;
+	DI1_7 AT %I*: BOOL;
+	DI1_8 AT %I*: BOOL;
+	
+	DO1_1 AT %Q*: BOOL;
+	DO1_2 AT %Q*: BOOL;
+	DO1_3 AT %Q*: BOOL;
+	DO1_4 AT %Q*: BOOL;
+//--------------------------------------------	
+// EL 4374	
+	AI_1 AT %I*: REAL;
+	AI_2 AT %I*: REAL;
+	AO_1 AT %Q*: REAL;
+	AO_2 AT %Q*: REAL;
+//--------------------------------------------
+// EL 1008	
+	DI2_1 AT %I*: BOOL;
+	DI2_2 AT %I*: BOOL;
+	DI2_3 AT %I*: BOOL;
+	DI2_4 AT %I*: BOOL;
+	DI2_5 AT %I*: BOOL;
+	DI2_6 AT %I*: BOOL;
+	DI2_7 AT %I*: BOOL;
+	DI2_8 AT %I*: BOOL;
+	
+//--------------------------------------------
+//EL 2008
+	DO2_1 AT %Q*: BOOL;
+	DO2_2 AT %Q*: BOOL;
+	DO2_3 AT %Q*: BOOL;
+	DO2_4 AT %Q*: BOOL;
+	DO2_5 AT %Q*: BOOL;
+	DO2_6 AT %Q*: BOOL;
+	DO2_7 AT %Q*: BOOL;
+	DO2_8 AT %Q*: BOOL;
+	// sygnał z przekaźnika bezpieczeństwa
+	bEstopOk: BOOL;
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

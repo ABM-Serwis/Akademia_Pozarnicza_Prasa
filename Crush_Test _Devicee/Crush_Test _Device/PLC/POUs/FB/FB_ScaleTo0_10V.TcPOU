@@ -1,0 +1,43 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.16">
+  <POU Name="FB_ScaleTo0_10V" Id="{a7c3e1b4-8d2f-4c6a-9e15-2b6f0d4a91c8}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_ScaleTo0_10V
+VAR_INPUT
+    InRaw      : INT;    // Sygnał z wejścia analogowego 0–10 V (INT)
+    InMin      : INT;    // Dolna granica = 0 V (np. 0)
+    InMax      : INT;    // Górna granica = 10 V (np. 32767)
+END_VAR
+VAR_OUTPUT
+    Out_V      : REAL;  // Wyjście 0–10 V
+    OutPercent : REAL;  // Procent 0–100%
+    Error      : BOOL;  // Błąd zakresu
+END_VAR
+VAR
+    scaled : REAL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[// Zabezpieczenie przed dzieleniem przez zero
+IF InMax <= InMin THEN
+    Out_V := 0.0;
+    OutPercent := 0.0;
+    Error := TRUE;
+ELSE
+    Error := FALSE;
+    // Konwersja INT → REAL i skalowanie do 0–1
+    // Różnica w REAL, żeby InMax - InMin nie przepełniło INT
+    scaled := (INT_TO_REAL(InRaw) - INT_TO_REAL(InMin)) / (INT_TO_REAL(InMax) - INT_TO_REAL(InMin));
+    // Ograniczenie do 0…1
+    IF scaled < 0.0 THEN scaled := 0.0; END_IF;
+    IF scaled > 1.0 THEN scaled := 1.0; END_IF;
+    OutPercent := scaled * 100.0;
+    // Skala na 0–10 V
+    Out_V := 0.0 + (scaled * 10.0);
+END_IF;]]></ST>
+    </Implementation>
+    <LineIds Name="FB_ScaleTo0_10V">
+      <LineId Id="3" Count="15" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

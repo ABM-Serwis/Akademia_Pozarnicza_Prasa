@@ -1,0 +1,40 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <GVL Name="GVL_Recipe" Id="{09842367-b01d-437f-a9b7-6982ea60edfd}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+VAR_GLOBAL CONSTANT
+	cMaxTableRows 			: INT := 30;
+
+END_VAR
+VAR_GLOBAL
+	// zmienne receptury
+	(*Zmienna1				: LREAL;
+	Zmienna2				: LREAL;
+	Zmienna3				: LREAL;
+	Zmienna4				: LREAL;
+	Zmienna5				: INT;
+	Zmienna6				: INT;
+	Zmienna7				: LREAL;
+	Zmienna8				: LREAL;
+	Zmienna9				: LREAL;
+	Zmienna10				: LREAL;
+	*)
+	// zmienne do obslugi
+	nRecipeCount			: INT;
+	aRecipeNames 			: ARRAY[0..cMaxTableRows] OF STRING;
+	aVariableNames 			: ARRAY[0..cMaxTableRows] OF STRING;
+	aVariableValues 		: ARRAY[0..cMaxTableRows] OF STRING;
+	nRecipeIndex			: INT;
+	nRecipeSelectionIndex	: INT;
+	nVariableIndex			: INT;
+	aCurrentValues			: ARRAY[0..cMaxTableRows] OF LREAL;
+	
+
+
+	bZapiszParametry: BOOL;
+	bCzytajParametry: BOOL;
+	nRecipeSelectionIndexTemp: INT;
+	
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

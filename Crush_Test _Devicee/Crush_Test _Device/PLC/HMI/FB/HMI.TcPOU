@@ -1,0 +1,247 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="HMI" Id="{a7a5f978-6943-4665-97d5-f309122abc7b}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK HMI
+VAR_INPUT
+	idAmsNetID  	: T_AmsNetId;
+	sRecipePath		: STRING(512);
+	sNazwaSzablonu	: T_MaxString;
+END_VAR
+VAR
+	
+	bTemp			: BOOL;
+	bInicjacjaOK	: BOOL := FALSE;
+	
+	bReset			: BOOL;
+	bResetMenu 		: BOOL := FALSE;
+
+	uiMenu			: UINT := 0;
+	
+	arrButtony		: ARRAY[0..ILOSC_BUTTONY_MENU] OF stButton;
+	
+	
+
+	bLogInBrak 		: BOOL;//:=TRUE;
+
+
+	
+END_VAR
+VAR CONSTANT
+	ILOSC_BUTTONY_MENU			: UINT := 8;  // o jeden mniej bo 0 ;
+	MAX_ILOSC_ALARMY			: UINT := 100;
+	MAX_ILOSC_ALARMY_NAZWY		: UINT := 20;
+END_VAR
+
+
+
+
+VAR_OUTPUT
+	uiNumerEkranu: UINT;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+
+
+
+IF NOT bInicjacjaOK THEN
+	Inicjacja();
+END_IF
+
+Logowanie();
+(*ObslugaReceptur();
+IF bReset THEN
+	IF Reset() THEN
+		bReset := FALSE;
+	END_IF
+END_IF
+*)
+IF bResetMenu THEN
+	IF MenuReset() THEN
+		bResetMenu := FALSE;
+	END_IF
+END_IF
+uiNumerEkranu:=uiMenu;
+
+
+
+]]></ST>
+    </Implementation>
+    <Method Name="Inicjacja" Id="{b5e371a6-62ff-4ac6-9438-ed1e520275fe}">
+      <Declaration><![CDATA[METHOD Inicjacja : BOOL
+VAR
+   	uiLicznik		: UINT;
+END_VAR
+VAR_INST
+
+	
+END_VAR
+
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+
+FOR uiLicznik := 0 TO  ILOSC_BUTTONY_MENU DO
+	arrButtony[uiLicznik].bVisable 			:= FALSE;
+	arrButtony[uiLicznik].bToggleCollor 	:= FALSE;
+	arrButtony[uiLicznik].dwAlarmColor  	:= 16#FFABA494;
+	arrButtony[uiLicznik].dwColor			:= 16#FFC0C0C0;
+	arrButtony[uiLicznik].nIndexDynamicText	:= uiLicznik;
+	
+END_FOR
+
+uiMenu := 0;
+arrButtony[0].bToggleCollor := TRUE;
+bInicjacjaOK := TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Logowanie" Id="{984a573e-898b-40ab-8c71-3976a333ce07}">
+      <Declaration><![CDATA[METHOD Logowanie : BOOL
+VAR_INPUT
+END_VAR
+VAR
+
+END_VAR
+VAR_INST
+	fbGetCurTaskIndex 	: GETCURTASKINDEX;
+	pClient				: POINTER TO VisuElems.VisuStructClientData; 
+	sCurrentUser		: WSTRING :="";
+	rtrigGrzyb			: R_TRIG;
+	tonGrzyb			: TON;
+	tonStart			: TON;
+	rtrigPrzycisk3		: R_TRIG;
+	rtrigPrzycisk7		: R_TRIG;
+	ftrigPrzycisk3		: F_TRIG;
+	ftrigPrzycisk7		: F_TRIG;
+	bPrzycisk3Trwa		: BOOL;
+	bPrzycisk7Trwa		: BOOL;
+	
+	bGrzybTrwa			: BOOL:=FALSE;
+	bOpoznienieStart	: BOOL;
+	
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[(*  Auto logowanie z opóźnieniem po starcie HMI
+fbGetCurTaskIndex();
+IF _TaskInfo[fbGetCurTaskIndex.index].FirstCycle THEN
+	bOpoznienieStart := TRUE;
+END_IF
+
+tonStart(IN:=bOpoznienieStart ,PT:=T#1S);
+IF tonStart.Q THEN
+	bOpoznienieStart:=FALSE;
+	bLogInBrak 		:= TRUE;
+END_IF
+*)
+
+(*  Auto Logowanie po naciśnięciu grzyba 
+rtrigGrzyb(CLK:=GVL_Inputs.bGrzybCP3916 AND NOT bOpoznienieStart);
+IF rtrigGrzyb.Q THEN
+	bGrzybTrwa:= TRUE;
+END_IF
+IF NOT GVL_Inputs.bGrzybCP3916  THEN
+	bGrzybTrwa := FALSE;
+END_IF
+
+tonGrzyb(IN := bGrzybTrwa , PT:=T#1M);//5M
+IF tonGrzyb.Q THEN
+	bLogInBrak := TRUE;
+	bGrzybTrwa := FALSE;
+END_IF
+*)
+
+(* Auto logowanie po przyciśnięciu odpowiednich klawiszy
+rtrigPrzycisk3( CLK:= bPrzycisk3Panel);
+rtrigPrzycisk7( CLK:= bPrzycisk7Panel);
+ftrigPrzycisk3( CLK:= bPrzycisk3Panel);
+ftrigPrzycisk7( CLK:= bPrzycisk7Panel);
+
+IF rtrigPrzycisk3.Q  THEN
+	bPrzycisk3Trwa := TRUE;
+END_IF
+IF rtrigPrzycisk7.Q  THEN
+	bPrzycisk7Trwa := TRUE;
+END_IF
+IF ftrigPrzycisk3.Q  THEN
+	bPrzycisk3Trwa := FALSE;
+END_IF
+IF ftrigPrzycisk7.Q  THEN
+	bPrzycisk7Trwa := FALSE;
+END_IF
+
+IF bPrzycisk3Trwa AND bPrzycisk7Trwa THEN
+	VisuElems.g_ClientManager.BeginIteration(); 
+	pClient := VisuElems.g_ClientManager.GetNextClient(); 
+	WHILE pClient <> VisuElems.NULL DO 
+		VisuUserManagement.g_VisuUserMgmt2.LoginToUserGroup(pClient, 2, "user", "user");
+		uiMenu := 0;
+		pClient := VisuElems.g_ClientManager.GetNextClient(); 
+	END_WHILE
+
+	IF sCurrentUser="brak" THEN
+		bLogInBrak:=FALSE;
+	END_IF
+
+END_IF
+*)
+
+sCurrentUser:=VisuElemsWinControls.CurrentUserName;
+
+IF bLogInBrak THEN
+
+	VisuElems.g_ClientManager.BeginIteration(); 
+	pClient := VisuElems.g_ClientManager.GetNextClient(); 
+	WHILE pClient <> VisuElems.NULL DO 
+		VisuUserManagement.g_VisuUserMgmt2.LoginToUserGroup(pClient, 3, "brak", "brak");
+		uiMenu := 0;
+		pClient := VisuElems.g_ClientManager.GetNextClient(); 
+	END_WHILE
+
+	IF sCurrentUser="brak" THEN
+		bLogInBrak:=FALSE;
+	END_IF
+
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="MenuReset" Id="{7e349b88-ea0c-4550-baa1-d3db3216ae95}">
+      <Declaration><![CDATA[METHOD MenuReset : BOOL
+VAR
+   	uiLicznik		: UINT;
+	
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//usuwa podświetlenie ze wszystkich przycisków menu ale pozostawia na wybranym
+FOR uiLicznik := 0 TO  ILOSC_BUTTONY_MENU DO
+	arrButtony[uiLicznik].bToggleCollor := FALSE;
+END_FOR
+arrButtony[uiMenu].bToggleCollor := TRUE;
+MenuReset := TRUE;
+
+]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="HMI">
+      <LineId Id="90" Count="3" />
+      <LineId Id="3" Count="17" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="21" Count="1" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="HMI.Inicjacja">
+      <LineId Id="3" Count="13" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="HMI.Logowanie">
+      <LineId Id="3" Count="80" />
+      <LineId Id="113" Count="0" />
+    </LineIds>
+    <LineIds Name="HMI.MenuReset">
+      <LineId Id="3" Count="4" />
+      <LineId Id="2" Count="0" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="11" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

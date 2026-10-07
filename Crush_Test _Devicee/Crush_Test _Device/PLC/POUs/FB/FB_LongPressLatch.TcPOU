@@ -1,0 +1,83 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="FB_LongPressLatch" Id="{96d44083-ad50-48bb-8481-5efc52f2e02a}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_LongPressLatch
+VAR_INPUT
+    Enable       : BOOL := TRUE;
+    In           : BOOL;                 (* przycisk/wejście *)
+    ResetLatch   : BOOL;                 (* dodatkowy reset zatrzasku *)
+    LongTime     : TIME := T#3s;         (* próg długiego przytrzymania *)
+END_VAR
+
+VAR_OUTPUT
+    Out          : BOOL;                 (* wyjście *)
+    Latched      : BOOL;                 (* status zatrzasku *)
+END_VAR
+
+VAR
+    tLong        : TON;
+    rRiseIn      : R_TRIG;
+    rFallIn      : F_TRIG;
+
+    longReached  : BOOL;                 (* czy w tym cyklu przytrzymania osiągnięto LongTime *)
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF NOT Enable THEN
+    Out := FALSE;
+    Latched := FALSE;
+    tLong(IN := FALSE, PT := LongTime);
+    longReached := FALSE;
+    RETURN;
+END_IF
+
+(* detekcja zboczy *)
+rRiseIn(CLK := In);
+rFallIn(CLK := In);
+
+(* tLong liczy tylko gdy przycisk jest wciśnięty i NIE jesteśmy w latchu *)
+tLong(IN := In AND NOT Latched, PT := LongTime);
+
+(* dodatkowy reset zatrzasku *)
+IF ResetLatch THEN
+    Latched := FALSE;
+END_IF
+
+(* Jeśli jesteśmy w latchu: kolejne naciśnięcie kasuje latch *)
+IF Latched AND rRiseIn.Q THEN
+    Latched := FALSE;
+END_IF
+
+(* Start nowego "naciśnięcia": wyczyść longReached *)
+IF rRiseIn.Q THEN
+    longReached := FALSE;
+END_IF
+
+(* Osiągnięto czas długiego przytrzymania -> ustaw latch *)
+IF (NOT Latched) AND tLong.Q AND (NOT longReached) THEN
+    Latched := TRUE;
+    longReached := TRUE;
+END_IF
+
+(* Logika wyjścia:
+   - jeśli zatrzask: zawsze 1
+   - jeśli nie zatrzask: wyjście jak wejście
+*)
+IF Latched THEN
+    Out := TRUE;
+ELSE
+    Out := In;
+END_IF
+
+(* Po puszczeniu przycisku, jeśli nie było długiego przytrzymania,
+   longReached zostaje FALSE (i tak resetujemy na kolejnym narastaniu). *)
+IF rFallIn.Q THEN
+    (* opcjonalnie: nic nie rób *)
+END_IF]]></ST>
+    </Implementation>
+    <LineIds Name="FB_LongPressLatch">
+      <LineId Id="28" Count="49" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

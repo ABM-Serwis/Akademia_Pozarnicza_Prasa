@@ -1,0 +1,62 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.16">
+  <GVL Name="GVL_ForceMode" Id="{6079d90b-4942-49f6-a517-d94f7a19eb14}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+VAR_GLOBAL
+(* ===== Przełączniki =====
+	   bModeForce:        FALSE = regulacja i przebicie od ciśnienia (jak dotychczas)
+	                      TRUE  = regulacja i przebicie od siły
+	   bForceRange100t:   FALSE = tensometr 50 t  (2,5 V = 50 t)
+	                      TRUE  = tensometr 100 t (2,5 V = 100 t)
+	   Oba można podpiąć pod przełącznik na pulpicie albo pod HMI.
+	   Domyślnie FALSE, więc po wgraniu maszyna zostaje w trybie ciśnienia, zakres 50 t.
+	*)
+	bModeForce					: BOOL := FALSE;
+	bForceRange100t				: BOOL := FALSE;
+
+	(* ===== Drugi setpoint — siła [t] =====
+	   Odpowiednik setpointów ciśnienia. Używane tylko w trybie siły.
+	   Wartość wpisana powyżej wybranego zakresu jest obcinana (patrz *_Eff).
+	*)
+	nForceSetpointManual		: REAL := 0.0;	(* t, tryb ręczny *)
+	nForceSetpointAutoMin		: REAL := 0.0;	(* t, auto *)
+	nForceSetpointAutoMax		: REAL := 0.0;	(* t, auto *)
+	nBreakDeltaForce			: REAL := 0.0;	(* t, spadek siły w oknie czasu = przebicie *)
+
+	(* ===== Pomiar =====
+	   Powiąż nForceInput_V z kanałem AI 0–10 V. Jednostka: wolty (0.0 … 10.0).
+	   Zakres roboczy przetwornika to 0.0 … 2.5 V. Powyżej 2.55 V = błąd zakresu.
+	*)
+	nForceInput_V				: REAL := 0.0;
+
+	nForce_t					: REAL;	(* wartość chwilowa, t *)
+	nForce_kg					: REAL;	(* kgf *)
+	nForce_N					: REAL;
+	nForce_kN					: REAL;
+	nForce_pct					: REAL;	(* % wybranego zakresu *)
+	nForceFullScale_t			: REAL;	(* 50 albo 100 *)
+	bForceSensorOk				: BOOL;
+	bForceOverrange				: BOOL;
+	bForceUnderrange			: BOOL;
+
+	nForce_Target				: REAL;	(* bieżące zadanie siły w trybie siły [t]; 0 w trybie ciśnienia *)
+
+	
+
+	(* Setpointy faktycznie podane do regulatora po obcięciu do zakresu. *)
+	nForceSetpointManual_Eff	: REAL;
+	nForceSetpointAutoMin_Eff	: REAL;
+	nForceSetpointAutoMax_Eff	: REAL;
+	nBreakDeltaForce_Eff		: REAL;
+	bForceSetpointLimited		: BOOL;	(* wpisana wartość była poza 0 … pełny zakres albo delta < 0 *)
+	bForceCfgFault				: BOOL;	(* AutoMin > AutoMax po obcięciu *)
+	bForceInhibit				: BOOL;	(* tryb siły i zły tensometr — ruch w górę jest zablokowany, dół zostaje *)
+	bMotionHold					: BOOL;	(* zmiana trybu lub zakresu 50/100 t w ruchu — puść przyciski *)
+	bRegulatorActive			: BOOL;
+	bAlarm						: BOOL;
+	nActiveSetpointManual		: REAL;	(* to, co w tym cyklu poszło jako setpoint ręczny: bar albo t *)
+	nActiveActual				: REAL;	(* to, co w tym cyklu poszło jako wartość rzeczywista *)
+END_VAR
+]]></Declaration>
+  </GVL>
+</TcPlcObject>

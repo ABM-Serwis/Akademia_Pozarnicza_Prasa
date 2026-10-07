@@ -1,0 +1,248 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.16">
+  <POU Name="Scaling" Id="{afc18ede-aefd-4a01-854b-d5713a5c6f46}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM Scaling
+VAR
+	AI_PressureRaw   : REAL;
+    PressureAI  : FB_AI_Real_To_PV_Adv;
+	AI_PositionRaw: REAL;
+	PositionAI  : FB_AI_Real_To_PV_Adv;
+///////////////////////////////////////////////
+	AI_Raw  : INT;                      // np. wartość z karty
+    fbPresureTo4_20 : FB_ScaleTo4_20mA;
+	fbPresureToPV  : FB_AI_Int_To_PV;
+	fbPositionTo4_20 : FB_ScaleTo4_20mA;
+	fbPositionToPV  : FB_AI_Int_To_PV;
+    Current : REAL;
+	
+	nCurrentPressure_4_20mA: REAL;
+	nCurrentPressure_bar: REAL;
+	nCurrentPressure_PC: REAL;
+	nCurrentPosition_4_20mA: REAL;
+	nCurrentPosition_mm: REAL;
+	nCurrentPosition_PC: REAL;
+	
+	fbPressureMax: FB_PV_To4_20mA;
+	
+	fbPressureMin: FB_PV_To4_20mA;
+	////////////////////////////////////////////////////
+	
+
+    AI_mA     : REAL;  (* tu wstaw wartość z kanału AI w mA *)
+    BtnZero   : BOOL;  (* przycisk zerowania *)
+
+    PosRaw    : REAL;
+    PosZero   : REAL;
+	
+	fbPressureToForce: FB_PressureToForce_PT1;
+	fbForceRawToForceVolt: FB_ScaleTo0_10V;
+	fbFB_ScaleTo0_10V: FB_ScaleTo0_10V;
+END_VAR
+	
+VAR PERSISTENT
+	fbPos : FB_PositionOffset_4_20mA;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(*
+//============================================================
+//		SKALOWANIE CIŚNIENIA
+//------------------------------------------------------------
+//		AI to 4-20mA
+AI_Raw := iHydraulicPressureRaw;  //  wartość z wejścia
+
+fbPresureTo4_20(
+    InRaw := AI_Raw,
+    InMin := 0,
+    InMax := 32767
+);
+
+
+nCurrentPressure_4_20mA := fbPresureTo4_20.Out_mA;  // wynik w mA (4–20)
+//-------------------------------------------------------------
+//			AI to bar
+fbPresureToPV(
+    InRaw  := AI_Raw,
+    InMin  := 0,
+    InMax  := 32767,
+    PV_Min := 0.0,     // 0 bar
+    PV_Max := 400.0     // 400 bar
+);
+
+nCurrentPressure_bar :=fbPresureToPV.PV_Value;//  → ciśnienie [bar]
+nCurrentPressure_PC :=fbPresureToPV.PV_Percent; //→ [% zakresu]
+
+//=================================================================
+//			SKALOWANIE POZYCJI
+//-----------------------------------------------------------------
+//			AI to 4-20mA
+AI_Raw := iCylinderPositionRaw;  //  wartość z wejścia
+
+fbPositionTo4_20(
+    InRaw := AI_Raw,
+    InMin := 0,
+    InMax := 32767
+);
+
+
+nCurrentPosition_4_20mA := fbPositionTo4_20.Out_mA;  // wynik w mA (4–20)
+//-------------------------------------------------------------
+//			AI to mm
+fbPositionToPV(
+    InRaw  := AI_Raw,
+    InMin  := 0,
+    InMax  := 32767,
+    PV_Min := 0.0,     // 0 mm
+    PV_Max := 100.0     // 100 mm
+);
+
+nCurrentPosition_mm :=fbPositionToPV.PV_Value;//  → pozycja [mm]
+nCurrentPosition_PC :=fbPositionToPV.PV_Percent; //→ [% zakresu]
+*)
+/////////////////////////////////////////////////////////////////////
+
+//============================================================
+//		SKALOWANIE CIŚNIENIA
+//------------------------------------------------------------
+
+AI_PressureRaw:=nHydraulicPressureRaw*1000 ;
+
+PressureAI(
+    InRaw       := AI_PressureRaw,
+    InMin       := 4.0,
+    InMax       := 20.0,
+    PV_Min      := 0.0,    // 0 bar
+    PV_Max      := 400.0,   // 400 bar
+    LowLimit_mA := 3.6,
+    HighLimit_mA:= 21.0
+);
+
+// Wyniki:
+ PressureAI.Out_mA ;     //→ prąd pętli [mA]
+ PressureAI.PV_Value;    //→ ciśnienie [bar]
+ PressureAI.PV_Percent;  //→ % zakresu (0..100)
+ PressureAI.Status;      //→ OK / UnderRange / OverRange / ConfigError
+ PressureAI.Valid ;      //→ TRUE tylko gdy OK
+
+//============================================================
+//		SKALOWANIE POZYCJI
+//------------------------------------------------------------
+
+AI_PositionRaw:=nCylinderPositionRaw*1000 ;
+(*
+PositionAI(
+    InRaw       := AI_PositionRaw,
+    InMin       := 4.0,
+    InMax       := 20.0,
+    PV_Min      := 0.0,    // 0 bar
+    PV_Max      := 125.0,   // 125 mm
+    LowLimit_mA := 3.6,
+    HighLimit_mA:= 21.0
+);
+
+// Wyniki:
+ PositionAI.Out_mA ;     //→ prąd pętli [mA]
+ PositionAI.PV_Value;    //→ pozycja [mm]
+ PositionAI.PV_Percent;  //→ % zakresu (0..100)
+ PositionAI.Status;      //→ OK / UnderRange / OverRange / ConfigError
+ PositionAI.Valid ;      //→ TRUE tylko gdy OK
+*)
+
+fbPos(
+    Enable  := TRUE,
+    In_mA   := AI_PositionRaw,
+    SetZero := fbPos.SetZero,
+    Range_mm := 125.0
+);
+
+
+ //==================================================================
+ // SKALOWANIE CIŚNIEŃ ZADANYCH 
+ 
+ fbPressureMax(
+	PV:=GVL_HMI.PressureSetpointAutoMax , 
+	PV_Min:=0 , 
+	PV_Max:= 400, 
+	ClampOutput:= , 
+	I_mA=> , 
+	Error=> );
+	
+ //==================================================================
+ // SKALOWANIE CIŚNIEŃ ZADANYCH 
+ 
+ fbPressureMin(
+	PV:=GVL_HMI.PressureSetpointAutoMin , 
+	PV_Min:=0 , 
+	PV_Max:= 400, 
+	ClampOutput:= , 
+	I_mA=> , 
+	Error=> );	
+//===================================================================
+//		PRZELICZENIE CISNIENIA NA SIŁĘ
+fbPressureToForce(
+	Pressure_bar:=PressureAI.PV_Value , 
+	PistonDiam_m:=0.45 , 
+	Efficiency:=0.9 , 
+	FilterTime_s:= 0.01, 
+	CycleTime_s:=0.01 , 
+	EnableFilter:=TRUE , 
+	Force_N=>GVL_HMI.Force_N , 
+	ForceRaw_N=> ,
+	Force_kg =>GVL_HMI.Force_kg,
+    ForceRaw_kg=>);
+//===================================================================
+//		SKALOWANIE WEJŚCIA 0-10V NA vOLTY
+fbFB_ScaleTo0_10V(
+	InRaw:=IO_Map.AI3 , 
+	InMin:=0 , 
+	InMax:=32767 , 
+	Out_V=>GVL_ForceMode.nForceInput_V , 
+	OutPercent=> , 
+	Error=> );
+]]></ST>
+    </Implementation>
+    <LineIds Name="Scaling">
+      <LineId Id="20" Count="4" />
+      <LineId Id="9" Count="5" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="18" Count="1" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="30" Count="8" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="40" Count="0" />
+      <LineId Id="43" Count="2" />
+      <LineId Id="47" Count="20" />
+      <LineId Id="46" Count="0" />
+      <LineId Id="85" Count="0" />
+      <LineId Id="84" Count="0" />
+      <LineId Id="87" Count="0" />
+      <LineId Id="113" Count="1" />
+      <LineId Id="88" Count="0" />
+      <LineId Id="95" Count="17" />
+      <LineId Id="89" Count="1" />
+      <LineId Id="115" Count="21" />
+      <LineId Id="159" Count="0" />
+      <LineId Id="222" Count="5" />
+      <LineId Id="221" Count="0" />
+      <LineId Id="229" Count="0" />
+      <LineId Id="228" Count="0" />
+      <LineId Id="86" Count="0" />
+      <LineId Id="160" Count="1" />
+      <LineId Id="164" Count="5" />
+      <LineId Id="162" Count="0" />
+      <LineId Id="171" Count="0" />
+      <LineId Id="173" Count="8" />
+      <LineId Id="172" Count="0" />
+      <LineId Id="186" Count="0" />
+      <LineId Id="302" Count="0" />
+      <LineId Id="304" Count="7" />
+      <LineId Id="264" Count="0" />
+      <LineId Id="313" Count="1" />
+      <LineId Id="353" Count="1" />
+      <LineId Id="358" Count="5" />
+      <LineId Id="355" Count="1" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

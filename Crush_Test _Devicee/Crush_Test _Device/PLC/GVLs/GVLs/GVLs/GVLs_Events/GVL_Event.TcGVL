@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <GVL Name="GVL_Event" Id="{fbc4232b-ebb3-410b-9124-ac984dcd7459}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+VAR_GLOBAL
+	bAlarm :BOOL;
+	bWarning:BOOL;
+	bMessage:BOOL;
+	aAlarm: ARRAY[0..100] OF BOOL;
+	aWarning: ARRAY[0..100] OF BOOL;
+	aMessage: ARRAY[0..100] OF BOOL;
+	bJestAalrm: BOOL;
+	bFilterActiveOnly2: BOOL;
+	bJestOstrzezenie: BOOL;
+	bJestAalrmLekki: BOOL;
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

@@ -1,0 +1,50 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.16">
+  <GVL Name="GVL_HMI" Id="{074c0535-b0d0-4668-8439-e3b1b4251ba9}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+VAR_GLOBAL
+	hmiPanel	: HMI;
+	
+	bKlodka: BOOL;
+	bResetAlarm: BOOL;
+	
+	tBreak_Time_Window: TIME;
+	sMode: STRING;
+	nPressBreak: REAL;
+	nPositionBreak: REAL;
+	nPressStart: REAL;
+	nPositionStart: REAL;
+	Force_N: REAL;
+	Force_kg: REAL;
+	Force_kg_2: REAL;
+	Force_N_2: REAL;
+	(* Zatrzask w chwili wykrycia przebicia — pomiar z tensometru, niezależnie od trybu. *)
+	nForce_t_Break				: REAL;
+	nForce_kg_Break				: REAL;
+	nForce_N_Break				: REAL;
+	nForce_kN_Break				: REAL;
+END_VAR
+VAR_GLOBAL PERSISTENT
+	nBreak_Time_Window			: INT;
+	nPressureSetpointManual: REAL;
+	nBreakDeltaPress: REAL;
+	nBreakDeltaPos: REAL;
+	PressureSetpointAutoMin: LREAL;
+	PressureSetpointAutoMax: LREAL;
+	// czas rampy Auto[ms]
+	nRamp_Time: DINT:=120;
+END_VAR
+VAR_GLOBAL CONSTANT
+	// Czasem w HMI trzeba podać kolor w wersji 16 
+	dwRed				: DWORD  := 16#FFE62545;
+	dwGreen				: DWORD  := 16#FF007D00;
+	dwYelow				: DWORD  := 16#FFFFFF00;
+	dwBlack				: DWORD  := 16#FF000000;
+	dwGrey_B			: DWORD  := 16#FF636363;
+	dwGrey_W			: DWORD  := 16#FFC8C8C8;
+	dwWhite				: DWORD  := 16#FFFFFFFF;
+	dwBackGround		: DWORD	 := 16#FFABA494;
+	
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

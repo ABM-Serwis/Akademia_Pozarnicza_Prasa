@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <DUT Name="E_AI_Status" Id="{1ce85c6b-a127-4910-b42c-c4beb5b48dcb}">
+    <Declaration><![CDATA[//{attribute 'qualified_only'}
+//{attribute 'strict'}
+TYPE E_AI_Status  :
+(
+	 AI_Status_Ok,           // wszystko w normie
+    AI_Status_UnderRange,   // prąd poniżej dolnego progu (np. przerwana pętla)
+    AI_Status_OverRange,    // prąd powyżej górnego progu (np. zwarcie, błąd)
+    AI_Status_ConfigError   // błąd konfiguracji (InMin/InMax)
+);
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

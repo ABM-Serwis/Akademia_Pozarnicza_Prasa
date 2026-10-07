@@ -1,0 +1,50 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="FB_ScaleTo4_20mA" Id="{c9f2ee93-3f45-420e-bd45-5a1e33406918}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_ScaleTo4_20mA
+
+VAR_INPUT
+    InRaw      : INT;    // Sygnał z wejścia analogowego (INT)
+    InMin      : INT;    // Dolna granica (np. 0)
+    InMax      : INT;    // Górna granica (np. 32767)
+END_VAR
+
+VAR_OUTPUT
+    Out_mA     : REAL;  // Wyjście 4–20 mA
+    OutPercent : REAL;  // Procent 0–100%
+    Error      : BOOL;  // Błąd zakresu
+END_VAR
+
+VAR
+    scaled : REAL;
+END_VAR
+
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[// Zabezpieczenie przed dzieleniem przez zero
+IF InMax <= InMin THEN
+    Out_mA := 4.0;
+    OutPercent := 0.0;
+    Error := TRUE;
+ELSE
+    Error := FALSE;
+
+    // Konwersja INT → REAL i skalowanie do 0–1
+    scaled := (INT_TO_REAL(InRaw - InMin)) / INT_TO_REAL(InMax - InMin);
+
+    // Ograniczenie do 0…1
+    IF scaled < 0.0 THEN scaled := 0.0; END_IF;
+    IF scaled > 1.0 THEN scaled := 1.0; END_IF;
+
+    OutPercent := scaled * 100.0;
+
+    // Skala na 4–20 mA
+    Out_mA := 4.0 + (scaled * 16.0);
+END_IF;]]></ST>
+    </Implementation>
+    <LineIds Name="FB_ScaleTo4_20mA">
+      <LineId Id="59" Count="18" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

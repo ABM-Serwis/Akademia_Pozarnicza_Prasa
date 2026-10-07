@@ -1,0 +1,32 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="Serwis" Id="{d26a66d2-0482-42b6-98c8-563eb4349db3}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM Serwis
+VAR
+	bKlodkaOn: BOOL;
+	tonKlodka: TON;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[//==========================================================================================
+// 		otwieranie kłódki w Menu
+IF VisuElemsWinControls.CurrentUserName<> "" THEN
+	//(VisuElemsWinControls.CurrentUserName<> "" AND GVL_HMI.hmiPanel.uiMenu=8) OR (VisuElemsWinControls.CurrentUserName<>"" AND GVL_HMI.hmiPanel.uiMenu=5 ) THEN
+	bKlodkaOn:=TRUE;
+	ELSE
+		bKlodkaOn:=FALSE;
+END_IF
+tonKlodka(IN:=NOT bKlodkaOn , PT:=T#550MS , Q=> , ET=> );
+IF tonKlodka.Q THEN
+	GVL_HMI.bKlodka:=FALSE;
+	ELSE
+		GVL_HMI.bKlodka:=TRUE;
+	END_IF
+]]></ST>
+    </Implementation>
+    <LineIds Name="Serwis">
+      <LineId Id="6" Count="13" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

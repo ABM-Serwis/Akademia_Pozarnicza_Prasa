@@ -1,0 +1,75 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="FB_AI_Real_To_PV_Adv" Id="{d4f71398-b15b-4fb2-a339-d32bcc1d715b}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_AI_Real_To_PV_Adv
+VAR_INPUT
+    // Wejście z karty (skalowane, typu REAL)
+    InRaw        : REAL;        // wartość z przetwornika A/D jako REAL
+    InMin        : REAL := 0.0; // dolna granica (np. 0.0)
+    InMax        : REAL := 32767.0; // górna granica (np. 32767.0)
+
+    // Zakres procesu (jednostki fizyczne)
+    PV_Min       : REAL;       // np. 0.0 bar
+    PV_Max       : REAL;       // np. 10.0 bar
+
+    // Progi diagnostyczne pętli prądowej
+    LowLimit_mA  : REAL := 3.6;  // poniżej → Underrange
+    HighLimit_mA : REAL := 21.0; // powyżej → Overrange
+END_VAR
+
+VAR_OUTPUT
+    Out_mA       : REAL;       // wyliczony prąd mA (bez ograniczania)
+    PV_Value     : REAL;       // wartość procesowa w jednostkach fizycznych
+    PV_Percent   : REAL;       // 0–100 % zakresu (po zacięciu do 0..100%)
+    Status       : E_AI_Status;// OK / Underrange / Overrange / ConfigError
+    Valid        : BOOL;       // TRUE gdy Status = OK
+END_VAR
+
+VAR
+    ratioRaw, ratioClamped : REAL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[// ---- Sprawdzenie poprawności konfiguracji zakresu wejścia ----
+IF InMax <= InMin THEN
+    // Błąd konfiguracji – nie liczymy nic więcej
+    Status     := AI_Status_ConfigError;
+    Valid      := FALSE;
+    Out_mA     := 4.0;
+    PV_Value   := PV_Min;
+    PV_Percent := 0.0;
+ELSE
+    // ---- Krok 1: REAL → udział 0..1 (jeszcze bez ograniczania) ----
+    ratioRaw := (InRaw - InMin) / (InMax - InMin);
+
+    // ---- Krok 2: udział → prąd 4–20 mA (bez ograniczania) ----
+    Out_mA := 4.0 + ratioRaw * 16.0;  // 4..20 mA dla ratio 0..1
+
+    // ---- Diagnostyka pętli prądowej na "surowym" Out_mA ----
+    IF Out_mA < LowLimit_mA THEN
+        Status := AI_Status_UnderRange;
+        Valid  := FALSE;
+    ELSIF Out_mA > HighLimit_mA THEN
+        Status := AI_Status_OverRange;
+        Valid  := FALSE;
+    ELSE
+        Status := AI_Status_Ok;
+        Valid  := TRUE;
+    END_IF;
+
+    // ---- Krok 3: zacięcie udziału do 0..1 do dalszego przeliczania PV ----
+    ratioClamped := ratioRaw;
+    IF ratioClamped < 0.0 THEN ratioClamped := 0.0; END_IF;
+    IF ratioClamped > 1.0 THEN ratioClamped := 1.0; END_IF;
+
+    // ---- Krok 4: udział 0..1 → jednostki fizyczne ----
+    PV_Value   := PV_Min + ratioClamped * (PV_Max - PV_Min);
+    PV_Percent := ratioClamped * 100.0;
+END_IF;]]></ST>
+    </Implementation>
+    <LineIds Name="FB_AI_Real_To_PV_Adv">
+      <LineId Id="36" Count="34" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

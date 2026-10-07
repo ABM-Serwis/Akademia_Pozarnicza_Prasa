@@ -1,0 +1,62 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="FB_PressureToForce_PT1" Id="{5cb3a80d-a6c9-476c-b30c-6d8262b2c102}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_PressureToForce_PT1
+VAR_INPUT
+    Pressure_bar     : REAL;  // Ciśnienie [bar]
+    PistonDiam_m     : REAL;  // Średnica tłoka [m]
+    Efficiency       : REAL;  // Sprawność (0.0 .. 1.0), np. 0.9
+    FilterTime_s     : REAL;  // Stała czasowa PT1 [s]
+    CycleTime_s      : REAL;  // Czas cyklu PLC [s]
+    EnableFilter     : BOOL;  // TRUE = filtr aktywny
+    Gravity_ms2      : REAL := 9.80665; // Przysp. graw. [m/s²]
+END_VAR
+
+VAR_OUTPUT
+    Force_N          : REAL;  // Siła przefiltrowana [N]
+    ForceRaw_N       : REAL;  // Siła bez filtra [N]
+    Force_kg         : REAL;  // Ekwiwalent masy (filtrowany) [kg]
+    ForceRaw_kg      : REAL;  // Ekwiwalent masy (surowy) [kg]
+END_VAR
+
+VAR
+    Pressure_Pa      : REAL;
+    Area_m2          : REAL;
+    Alpha            : REAL;
+    ForceFilt_N      : REAL;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[// --- Ograniczenia ---
+IF Efficiency < 0.0 THEN Efficiency := 0.0; END_IF;
+IF Efficiency > 1.0 THEN Efficiency := 1.0; END_IF;
+IF Gravity_ms2 <= 0.0 THEN Gravity_ms2 := 9.80665; END_IF;
+
+// --- Przeliczenia ---
+Pressure_Pa := Pressure_bar * 100000.0;
+Area_m2 := 3.14159265359 * (PistonDiam_m * 0.5) * (PistonDiam_m * 0.5);
+
+// Siła surowa
+ForceRaw_N := Pressure_Pa * Area_m2 * Efficiency;
+
+// --- Filtr PT1 ---
+IF EnableFilter AND (FilterTime_s > 0.0) THEN
+    Alpha := CycleTime_s / FilterTime_s;
+    IF Alpha > 1.0 THEN Alpha := 1.0; END_IF;
+
+    ForceFilt_N := ForceFilt_N + Alpha * (ForceRaw_N - ForceFilt_N);
+    Force_N := ForceFilt_N;
+ELSE
+    ForceFilt_N := ForceRaw_N;
+    Force_N := ForceRaw_N;
+END_IF
+
+// --- Przeliczenie na kg ---
+ForceRaw_kg := ForceRaw_N / Gravity_ms2;
+Force_kg    := Force_N    / Gravity_ms2;]]></ST>
+    </Implementation>
+    <LineIds Name="FB_PressureToForce_PT1">
+      <LineId Id="73" Count="25" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

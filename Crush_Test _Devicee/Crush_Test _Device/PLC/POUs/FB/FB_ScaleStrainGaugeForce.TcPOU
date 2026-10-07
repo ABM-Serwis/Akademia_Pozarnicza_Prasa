@@ -1,0 +1,87 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.16">
+  <POU Name="FB_ScaleStrainGaugeForce" Id="{a4342076-2144-4ddd-beec-c7784632c5ea}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_ScaleStrainGaugeForce
+VAR_INPUT
+	U_V			: REAL;		(* Napięcie z kanału analogowego 0–10 V. *)
+	Range_100t	: BOOL;		(* FALSE = tensometr 50 t, TRUE = tensometr 100 t. *)
+END_VAR
+VAR_OUTPUT
+	Force_t			: REAL;	(* t (tona-siła) *)
+	Force_kg		: REAL;	(* kgf *)
+	Force_N			: REAL;
+	Force_kN		: REAL;
+	FullScale_t		: REAL;	(* 50 albo 100 *)
+	Force_pct		: REAL;	(* 0–100% wybranego zakresu; przy przekroczeniu napięcia 100 i SensorOk = FALSE *)
+	SensorOk		: BOOL;
+	Overrange		: BOOL;	(* U > 2,55 V — nie skalujemy liniowo do 10 V *)
+	Underrange		: BOOL;	(* U < -0,05 V *)
+END_VAR
+VAR CONSTANT
+	cU_FullScale	: REAL := 2.5;		(* 2,5 V = 100% zakresu 50 t albo 100 t *)
+	cU_Overrange	: REAL := 2.55;		(* zapas na szum; powyżej = błąd, nie ekstrapolacja *)
+	cU_Underrange	: REAL := -0.05;
+	cTonToKgf		: REAL := 1000.0;	(* 1 t = 1000 kgf *)
+	cKgfToN			: REAL := 9.80665;	(* 1 kgf = 9,80665 N *)
+END_VAR
+VAR
+	rClamped		: REAL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(*
+	Przetwornik tensometryczny jest podany na wejście 0–10 V,
+	ale pracuje tylko w zakresie 0–2,5 V:
+
+	    0,0 V = 0 t
+	    2,5 V = 50 t  gdy Range_100t = FALSE
+	    2,5 V = 100 t gdy Range_100t = TRUE
+
+	Napięcie 5 V albo 10 V NIE oznacza wielokrotności zakresu.
+	To przekroczenie (Overrange): siła do podglądu = pełny zakres, SensorOk = FALSE.
+	Pasmo 2,50–2,55 V jest obcinane do 100% (szum przy pełnej skali).
+	Lekki minus do -0,05 V jest zerem. Poniżej: Underrange.
+*)
+
+IF Range_100t THEN
+	FullScale_t := 100.0;
+ELSE
+	FullScale_t := 50.0;
+END_IF
+
+Overrange := FALSE;
+Underrange := FALSE;
+SensorOk := FALSE;
+Force_t := 0.0;
+Force_pct := 0.0;
+rClamped := 0.0;
+
+IF cU_FullScale > 0.0 THEN
+	Overrange := U_V > cU_Overrange;
+	Underrange := U_V < cU_Underrange;
+
+	IF Overrange THEN
+		Force_t := FullScale_t;
+		Force_pct := 100.0;
+	ELSIF Underrange THEN
+		Force_t := 0.0;
+		Force_pct := 0.0;
+	ELSE
+		SensorOk := TRUE;
+		rClamped := LIMIT(0.0, U_V, cU_FullScale);
+		Force_t := (rClamped / cU_FullScale) * FullScale_t;
+		Force_pct := (rClamped / cU_FullScale) * 100.0;
+	END_IF
+END_IF
+
+Force_kg := Force_t * cTonToKgf;
+Force_N := Force_kg * cKgfToN;
+Force_kN := Force_N / 1000.0;
+]]></ST>
+    </Implementation>
+    <LineIds Name="FB_ScaleStrainGaugeForce">
+      <LineId Id="35" Count="47" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

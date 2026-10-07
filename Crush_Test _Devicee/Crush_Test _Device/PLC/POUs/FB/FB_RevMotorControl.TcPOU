@@ -1,0 +1,128 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="FB_RevMotorControl" Id="{883ebd7c-9723-48f7-9a55-06818aac0942}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_RevMotorControl
+VAR_INPUT
+    bForward            : BOOL;  // Komenda jazdy w przód
+    bReverse            : BOOL;  // Komenda jazdy w tył
+    bStop               : BOOL := FALSE;  // Zatrzymanie ręczne (opcjonalne)
+    bThermalOk          : BOOL := TRUE;   // Termik silnika OK (NC → 0 = zadziałany)
+    bLimitSwitchFwd     : BOOL := TRUE;   // Krańcówka przód (NC → 0 = osiągnięta)
+    bLimitSwitchRev     : BOOL := TRUE;   // Krańcówka tył  (NC → 0 = osiągnięta)
+    bEmergencyStop      : BOOL := TRUE;   // E-Stop (NC → 0 = wciśnięty)
+    bEnable             : BOOL := TRUE;   // Zewnętrzne zezwolenie
+END_VAR
+
+VAR_OUTPUT
+    bRunForward         : BOOL;  // Stycznik – jazda w przód
+    bRunReverse         : BOOL;  // Stycznik – jazda w tył
+    bRunning            : BOOL;  // Silnik pracuje (którykolwiek kierunek)
+    bFault              : BOOL;  // Błąd wymagający kasowania (głównie termik)
+    bReady              : BOOL;  // System gotowy do pracy
+END_VAR
+
+VAR
+    bIntForward         : BOOL := FALSE;  // Wewnętrzny stan przód
+    bIntReverse         : BOOL := FALSE;  // Wewnętrzny stan tył
+    bThermalFault       : BOOL := FALSE;  // Ręczna pamięć błędu termicznego (zamiast SR)
+    tAntiTieDelay1       : TON;            // Opóźnienie przeciwzwarciowe 400 ms
+	tAntiTieDelay2       : TON;            // Opóźnienie przeciwzwarciowe 400 ms
+    bFirstCycle         : BOOL := TRUE;
+END_VAR
+
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+
+//===================================================================
+// Poprawiona logika – krańcówki działają prawidłowo!
+//===================================================================
+
+IF bFirstCycle THEN
+  
+    tAntiTieDelay1.PT := T#300MS;
+	tAntiTieDelay2.PT := T#300MS;
+	  bFirstCycle := FALSE;
+END_IF;
+
+// 1. Natychmiastowe wyłączenie przy braku bezpieczeństwa
+IF NOT bEmergencyStop OR NOT bThermalOk THEN
+    bIntForward := FALSE;
+    bIntReverse := FALSE;
+END_IF;
+
+// 2. Ręczna pamięć błędu termicznego
+IF NOT bThermalOk AND bRunForward AND bRunReverse THEN
+    bThermalFault := TRUE;                    // SET
+END_IF;
+IF bEmergencyStop AND bThermalOk AND (bStop OR (bForward AND bReverse)) THEN
+    bThermalFault := FALSE;                   // RST
+END_IF;
+
+// 3. Główna logika kierunku – KRAŃCÓWKI TYLKO BLOKUJĄ SWÓJ KIERUNEK!
+IF NOT bThermalFault AND bEnable AND bEmergencyStop AND bThermalOk THEN
+
+    // Żądanie jazdy w przód – dozwolone tylko jeśli krańcówka przód jest zwolniona
+    IF bForward AND NOT bReverse AND bLimitSwitchFwd AND NOT bIntReverse THEN
+        bIntForward := TRUE;
+    ELSIF NOT bLimitSwitchFwd OR bReverse THEN
+        bIntForward := FALSE;                 // krańcówka przód osiągnięta → wyłącz przód
+    END_IF;
+
+    // Żądanie jazdy w tył – dozwolone tylko jeśli krańcówka tył jest zwolniona
+    IF bReverse AND NOT bForward AND bLimitSwitchRev and not bIntForward THEN
+        bIntReverse := TRUE;
+    ELSIF NOT bLimitSwitchRev OR bForward THEN
+        bIntReverse := FALSE;                 // krańcówka tył osiągnięta → wyłącz tył
+    END_IF;
+
+    // Zatrzymanie ręczne lub brak komendy
+    IF bStop OR (NOT bForward AND NOT bReverse)OR (bForward AND  bReverse) THEN
+        bIntForward := FALSE;
+        bIntReverse := FALSE;
+    END_IF;
+
+END_IF;
+
+// 4. Opóźnienie przeciwzwarciowe 400 ms
+tAntiTieDelay1(IN := bForward );
+
+IF tAntiTieDelay1.Q THEN
+    bRunForward := bIntForward;
+    
+ELSE
+    bRunForward := FALSE;
+   
+END_IF;
+
+tAntiTieDelay2(IN := bReverse);
+
+IF tAntiTieDelay2.Q THEN
+   
+    bRunReverse := bIntReverse;
+ELSE
+   
+    bRunReverse := FALSE;
+END_IF;
+// 5. Wyjścia diagnostyczne
+bRunning := bRunForward OR bRunReverse;
+
+bReady   := bEmergencyStop
+            AND bThermalOk
+            AND bEnable
+            AND NOT bThermalFault;
+
+bFault   := bThermalFault;]]></ST>
+    </Implementation>
+    <LineIds Name="FB_RevMotorControl">
+      <LineId Id="106" Count="1" />
+      <LineId Id="205" Count="6" />
+      <LineId Id="310" Count="1" />
+      <LineId Id="212" Count="50" />
+      <LineId Id="308" Count="0" />
+      <LineId Id="300" Count="7" />
+      <LineId Id="263" Count="8" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

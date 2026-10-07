@@ -1,0 +1,137 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="P_EventHandling2" Id="{2812fc2b-4b1b-46f7-88e6-36a42cca0c43}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM P_EventHandling2
+VAR
+	sAktywnyEkran: STRING;
+	i: INT;
+	
+	j: INT;
+	k: INT;
+	i2: INT;
+	tonNieMaAlarmow: TON;
+	bAlarm: BOOL;
+	bOstrzezenie: BOOL;
+	bAalrmLekki: BOOL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+//==============================================================
+//		ukrywanie alarmów w stopce gdy otwarty ekran alarmów
+IF GVL_HMI.hmiPanel.uiMenu=1 THEN
+	
+GVL_Event.bFilterActiveOnly2:=FALSE;
+ELSE
+	GVL_Event.bFilterActiveOnly2:=TRUE;
+END_IF
+
+//==============================================================
+//     sprawdzenie czy jest alarm dla pokazania-ukrycia na stopce
+//FOR i:=1 TO UDINT_TO_INT(GVL_EHS.diEventsDefinition) DO
+FOR i:=1 TO 100 DO
+	
+	bAlarm:=GVL_EHS.arrEventDefinition[i].bActive;
+	IF bAlarm THEN
+		GVL_Event.bJestAalrm:=TRUE;
+		EXIT;
+		ELSE 
+			GVL_Event.bJestAalrm:=FALSE;
+		
+	END_IF
+	
+END_FOR
+
+FOR i2:=201 TO 300 DO
+	
+	bAalrmLekki:=GVL_EHS.arrEventDefinition[i2].bActive;
+	IF bAalrmLekki THEN
+		GVL_Event.bJestAalrmLekki:=TRUE;
+		EXIT;
+		ELSE 
+			GVL_Event.bJestAalrmLekki:=FALSE;
+	END_IF
+END_FOR
+
+FOR k:=101 TO 200 DO
+	bOstrzezenie:=GVL_EHS.arrEventDefinition[k].bActive;
+	IF bOstrzezenie THEN	
+	GVL_Event.bJestOstrzezenie:=TRUE;
+	EXIT;
+		ELSE 
+			GVL_Event.bJestOstrzezenie:=FALSE;
+	END_IF
+END_FOR
+//===============================================================
+//		ukrywanie alarmu na stopce
+IF GVL_HMI.bResetAlarm THEN
+	FOR j:=0 TO 200 DO
+		GVL_Event.aAlarm[j]:=FALSE;
+		GVL_Event.aWarning[j]:=FALSE;
+	//	GVL_Event.aMessage[j]:=FALSE;
+	END_FOR
+	GVL_Event.bJestAalrm:=FALSE;
+	GVL_Event.bJestAalrmLekki:=FALSE;
+	GVL_Event.bJestOstrzezenie:=FALSE;
+	//GVL_HMI.bResetAlarm:=FALSE;
+END_IF
+
+tonNieMaAlarmow(IN:=GVL_HMI.bResetAlarm , PT:=T#500MS , Q=> , ET=> );
+IF tonNieMaAlarmow.Q THEN
+	GVL_HMI.bResetAlarm:=FALSE;
+END_IF
+
+
+
+]]></ST>
+    </Implementation>
+    <LineIds Name="P_EventHandling2">
+      <LineId Id="16" Count="2" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="9" Count="2" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="22" Count="1" />
+      <LineId Id="64" Count="0" />
+      <LineId Id="24" Count="1" />
+      <LineId Id="116" Count="1" />
+      <LineId Id="120" Count="0" />
+      <LineId Id="132" Count="2" />
+      <LineId Id="118" Count="0" />
+      <LineId Id="26" Count="1" />
+      <LineId Id="79" Count="3" />
+      <LineId Id="135" Count="0" />
+      <LineId Id="137" Count="2" />
+      <LineId Id="136" Count="0" />
+      <LineId Id="83" Count="0" />
+      <LineId Id="78" Count="0" />
+      <LineId Id="77" Count="0" />
+      <LineId Id="41" Count="0" />
+      <LineId Id="140" Count="0" />
+      <LineId Id="42" Count="1" />
+      <LineId Id="144" Count="1" />
+      <LineId Id="143" Count="0" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="40" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="30" Count="1" />
+      <LineId Id="54" Count="1" />
+      <LineId Id="67" Count="0" />
+      <LineId Id="86" Count="0" />
+      <LineId Id="56" Count="0" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="85" Count="0" />
+      <LineId Id="68" Count="0" />
+      <LineId Id="46" Count="0" />
+      <LineId Id="33" Count="0" />
+      <LineId Id="102" Count="0" />
+      <LineId Id="101" Count="0" />
+      <LineId Id="97" Count="0" />
+      <LineId Id="104" Count="1" />
+      <LineId Id="98" Count="2" />
+      <LineId Id="96" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

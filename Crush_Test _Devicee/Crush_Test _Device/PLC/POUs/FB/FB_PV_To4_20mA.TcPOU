@@ -1,0 +1,55 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="FB_PV_To4_20mA" Id="{f1ed9fc5-7e6b-4581-b8f9-0dcebad6c2e5}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_PV_To4_20mA
+VAR_INPUT
+    PV           : LREAL; (* aktualne ciśnienie, np. [bar] *)
+    PV_Min       : LREAL; (* dolny zakres przetwornika *)
+    PV_Max       : LREAL; (* górny zakres przetwornika *)
+    ClampOutput  : BOOL;  (* jeżeli TRUE – ograniczaj do zakresu 4–20 mA *)
+END_VAR
+
+VAR_OUTPUT
+    I_mA    : LREAL; (* wyjście prądowe w mA *)
+    Error   : BOOL;  (* TRUE gdy PV_Min >= PV_Max *)
+END_VAR
+
+VAR
+    spanPV  : LREAL;
+    spanI   : LREAL := 16.0; (* 20 mA - 4 mA *)
+    tmpI    : LREAL;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(* --------------------------------------------- *)
+(* Konwersja PV -> 4–20 mA                       *)
+(* I = 4 + (PV - PV_Min) * 16 / (PV_Max - PV_Min) *)
+(* --------------------------------------------- *)
+
+Error := FALSE;
+spanPV := PV_Max - PV_Min;
+
+IF spanPV <= 0.0 THEN
+    Error := TRUE;
+    I_mA := 0.0;
+ELSE
+    (* Wyliczenie prądu teoretycznego *)
+    tmpI := 4.0 + (PV - PV_Min) * spanI / spanPV;
+
+    IF ClampOutput THEN
+        (* Ogranicz do 4–20 mA *)
+        IF tmpI < 4.0 THEN
+            tmpI := 4.0;
+        ELSIF tmpI > 20.0 THEN
+            tmpI := 20.0;
+        END_IF
+    END_IF
+
+    I_mA := tmpI;
+END_IF]]></ST>
+    </Implementation>
+    <LineIds Name="FB_PV_To4_20mA">
+      <LineId Id="63" Count="24" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

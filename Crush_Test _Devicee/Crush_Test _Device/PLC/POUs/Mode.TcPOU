@@ -1,0 +1,48 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="Mode" Id="{76113f60-7519-4d83-8634-3c8589ca0881}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM Mode
+VAR
+	fbMode       : FB_AutoManual;
+   
+
+    bAutoMode    : BOOL;
+    bManualMode  : BOOL;
+    bAutoReady   : BOOL;   // np. wyjście po opóźnieniu
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[fbMode(
+    bControlOn  := bControlOn,
+    bEstopOK    := bEstopOK,
+    bMoveUp     := .bCylinderCmdUp,
+    bMoveDown   := .bCylinderCmdDown,
+    bCycleStart := .bCycleStartCmd,
+    bCycleStop  := .bCycleStopCmd,
+    tAutoDelay  := T#1S   // np. 1 sekunda opóźnienia
+);
+
+bAutoMode   := fbMode.bAutoMode;
+bManualMode := fbMode.bManualMode;
+bAutoReady  := fbMode.bAutoDelayed;
+
+
+IF bAutoMode THEN
+	GVL_HMI.sMode:='TRYB AUTOMATYCZNY';
+	ELSE
+		GVL_HMI.sMode:='TRYB RĘCZNY';	
+END_IF
+]]></ST>
+    </Implementation>
+    <LineIds Name="Mode">
+      <LineId Id="17" Count="11" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="40" Count="1" />
+      <LineId Id="39" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="44" Count="1" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="29" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

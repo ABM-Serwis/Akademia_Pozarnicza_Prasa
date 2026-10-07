@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="Logowanie" Id="{22b85a99-3ad8-4c79-b7a2-79474d78307b}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM Logowanie
+VAR
+	
+	pClient                : POINTER TO VisuElems.VisuStructClientData;
+	wsCurrentUser			: WSTRING;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[//pClient := VisuElems.g_ClientManager.GetNextClient(); 
+wsCurrentUser:=VisuElemsWinControls.CurrentUserName;
+//IF wsCurrentUser<>"admin" AND GVL_HMI.hmiPanel.uiMenu=5  THEN
+	//VisuUserManagement.OpenLoginDialog(pClient);
+//END_IF
+]]></ST>
+    </Implementation>
+    <LineIds Name="Logowanie">
+      <LineId Id="9" Count="3" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="19" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

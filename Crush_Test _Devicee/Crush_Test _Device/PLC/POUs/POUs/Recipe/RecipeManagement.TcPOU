@@ -1,0 +1,195 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="RecipeManagement" Id="{08651ac4-57a9-4ba2-b388-846cf825165d}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM RecipeManagement
+VAR
+	bInit					: BOOL := TRUE;
+	fbRecipeManComm			: RecipeManCommands;
+	sRecipeDef				: STRING := 'Recipes';
+	nCount					: INT;
+	nPreviousSelectionIndex	: INT := -2;
+	nLastError				: DWORD;
+	nRecipeCount			: INT;
+	nPreviousIndex			: INT;
+	bReloadValues			: BOOL;
+	nSelectionIndexInList 	: INT;
+	sRecipe					: STRING;
+	bReload					: BOOL;
+	bSave					: BOOL;
+	sNewRecipeName			: STRING;
+	bSaveVariables			: BOOL;
+	fbSaveVariablesTrigger	: R_TRIG;
+	sLoadName				: STRING;
+	fbLoadTrigger			: R_TRIG;
+	bDelete					: BOOL;
+	bCreate					: BOOL;
+	bSaveHMI				: BOOL;
+	ftRefresh				: F_TRIG;
+	tp1						: TP;
+	sHmi_Name				: STRING;
+	i: INT;
+	j: INT;
+	iKrokTryb: INT;
+	bRecipeToPLC: BOOL;
+	arrPusty: ARRAY[0..30] OF INT;
+END_VAR
+
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+
+
+GVL_HMI.uiIloscReceptur:=INT_TO_UINT(GVL_Recipe.nRecipeCount-1);
+A_ReadRecipe();
+// inicjalizacjia
+tp1(In:=bDelete OR bCreate OR bSaveHMI, PT:=T#100MS);
+ftRefresh(CLK:=tp1.Q);
+IF ftRefresh.Q THEN
+	bReload:=TRUE;
+END_IF
+IF bInit THEN
+	// pobierz liczbe receptur
+	GVL_Recipe.nRecipeCount:=fbRecipeManComm.GetRecipeCount(sRecipeDef);
+	// wyczysc wszystkie tablice
+	FOR nCount := 0 TO GVL_Recipe.cMaxTableRows DO
+		GVL_Recipe.aRecipeNames[nCount] := '';
+		//GVL_Recipe.aVariableNames[nCount] := '';
+		GVL_Recipe.aVariableValues[nCount] := '';
+	END_FOR
+	
+	fbRecipeManComm.GetRecipeNames(sRecipeDef,
+									ADR(GVL_Recipe.aRecipeNames),
+									30,
+									GVL_Recipe.nRecipeIndex);
+										
+	GVL_Recipe.nRecipeSelectionIndex := -1;
+	nPreviousSelectionIndex := -1;
+	bInit := FALSE;
+END_IF
+
+nRecipeCount := fbRecipeManComm.GetRecipeCount(sRecipeDef);
+nLastError := fbRecipeManComm.GetLastError();
+
+
+// scroll position has changed
+IF GVL_Recipe.nRecipeIndex <> nPreviousIndex THEN
+	fbRecipeManComm.GetRecipeNames(	sRecipeDef,
+									ADR(GVL_Recipe.aRecipeNames),
+									30,
+									GVL_Recipe.nRecipeIndex);
+	nPreviousIndex := GVL_Recipe.nRecipeIndex;
+END_IF
+
+
+//============================================================================
+CASE iKrokTryb OF
+	0:IF bRecipeToPLC THEN
+		iKrokTryb:=10;
+	END_IF
+	10:
+	GVL_Recipe.nRecipeSelectionIndexTemp:=GVL_Recipe.nRecipeSelectionIndex;
+	iKrokTryb:=20;
+	bRecipeToPLC:=FALSE;
+	20:
+	GVL_Recipe.nRecipeSelectionIndex:=0;
+fbRecipeManComm.ReloadRecipes(sRecipeDef);
+	
+	iKrokTryb:=25;
+	25:
+	GVL_Recipe.nRecipeSelectionIndex:=30;
+	iKrokTryb:=30;
+	30:
+	GVL_Recipe.nRecipeSelectionIndex:=GVL_Recipe.nRecipeSelectionIndexTemp;
+	iKrokTryb:=40;
+	40:
+	fbRecipeManComm.WriteRecipe(sRecipeDef,sRecipe);
+	iKrokTryb:=0;
+END_CASE
+
+
+
+//==========================================================
+
+
+//selection changed
+IF GVL_Recipe.nRecipeSelectionIndex <> nPreviousSelectionIndex OR bReloadValues THEN
+	nPreviousSelectionIndex := GVL_Recipe.nRecipeSelectionIndex;
+	nSelectionIndexInList := GVL_Recipe.nRecipeSelectionIndex - GVL_Recipe.nRecipeIndex;
+	
+	(* Get the selected recipe name *)
+	IF nSelectionIndexInList >= 0 AND nSelectionIndexInList < 30 THEN
+		sRecipe := GVL_Recipe.aRecipeNames[nSelectionIndexInList];
+	END_IF
+	
+	fbRecipeManComm.GetRecipeVariableNames(sRecipeDef, sRecipe,ADR(GVL_Recipe.aVariableNames),30,0);
+	
+	fbRecipeManComm.GetRecipeValues(sRecipeDef,
+										sRecipe,
+										ADR(GVL_Recipe.aVariableValues),
+										30,
+										GVL_Recipe.nVariableIndex,
+										80);
+										
+(*	fbRecipeManComm.GetRecipeVariableNames(	sRecipeDef,
+												sRecipe,
+												ADR(GVL_Recipe.aVariableNames),
+												10,
+												GVL_Recipe.nVariableIndex);*)
+	
+	bReloadValues := FALSE;
+END_IF
+	
+IF bReload THEN
+	fbRecipeManComm.ReloadRecipes(sRecipeDef);
+	bInit := TRUE;
+	bReload := FALSE;
+END_IF
+
+fbSaveVariablesTrigger(CLK := bSaveVariables);
+IF fbSaveVariablesTrigger.Q THEN
+	fbRecipeManComm.SetRecipeValues(sRecipeDef,
+									sRecipe,
+									ADR(GVL_Recipe.aVariableValues),
+									30,
+									GVL_Recipe.nVariableIndex);	
+	bSaveVariables := FALSE;
+END_IF
+
+IF bSave THEN
+	fbRecipeManComm.SaveRecipe(sRecipeDef, sRecipe);
+	bSave:=FALSE;
+END_IF
+
+bReload := FALSE;
+sHmi_Name:=CONCAT(str1:=(CONCAT(str1:=sRecipeDef,str2:=' ')),str2:=sRecipe);]]></ST>
+    </Implementation>
+    <Action Name="A_ReadRecipe" Id="{38f44adb-3fca-473a-a48a-699dc8b04858}">
+      <Implementation>
+        <ST><![CDATA[GVL_Recipe.aCurrentValues[0]:=BreakthroughDetection.nBreakDeltaPos;
+GVL_Recipe.aCurrentValues[1]:=arrPusty[1];;
+GVL_Recipe.aCurrentValues[2]:=arrPusty[1];;
+GVL_Recipe.aCurrentValues[3]:=arrPusty[1];;
+GVL_Recipe.aCurrentValues[4]:=arrPusty[1];;
+GVL_Recipe.aCurrentValues[5]:=arrPusty[1];;
+GVL_Recipe.aCurrentValues[6]:=arrPusty[1];;
+GVL_Recipe.aCurrentValues[7]:=arrPusty[1];;
+GVL_Recipe.aCurrentValues[8]:=arrPusty[1];;
+GVL_Recipe.aCurrentValues[9]:=arrPusty[1];;
+GVL_Recipe.aCurrentValues[10]:=arrPusty[1];;
+GVL_Recipe.aCurrentValues[11]:=arrPusty[1];
+GVL_Recipe.aCurrentValues[12]:=arrPusty[2];
+GVL_Recipe.aCurrentValues[13]:=arrPusty[3];
+GVL_Recipe.aCurrentValues[14]:=arrPusty[4];
+]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="RecipeManagement">
+      <LineId Id="1057" Count="124" />
+      <LineId Id="428" Count="0" />
+    </LineIds>
+    <LineIds Name="RecipeManagement.A_ReadRecipe">
+      <LineId Id="46" Count="14" />
+      <LineId Id="70" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

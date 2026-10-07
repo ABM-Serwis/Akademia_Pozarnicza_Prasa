@@ -1,0 +1,74 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.16">
+  <POU Name="IO_Map" Id="{d5cb3b4f-f901-4858-a3fa-b8e4dc11805b}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM IO_Map
+VAR
+	
+	
+	
+	AI3 AT %I*: INT;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+//---------------------------------------------	
+// EK 1818
+
+	bControlOn				  :=  DI1_1;
+	bTopPreserCmdUp           :=  DI1_2;
+	bTopPreserCmdDown         :=  DI1_3;
+	bCycleStartCmd            :=  DI1_4;
+	bCycleStopCmd             :=  DI1_5;
+	bCylinderCmdUp            :=  DI1_6;
+	bCylinderCmdDown          :=  DI1_7;
+	bHydraulicUnitCmdStart    :=  DI1_8;
+
+	
+	DO1_1:=bLedHydraulicUnitOn;
+	DO1_2;
+	DO1_3;
+	DO1_4;
+//--------------------------------------------	
+// EL 4374	
+	nHydraulicPressureRaw		:=  AI_1; //{mA]0.004=0bar/0.020=400bar
+	nCylinderPositionRaw    	:=  AI_2; //[mA]0.004=0mm/0.020=125mm
+	AO_1						:=nHydraulicPressureOut0_10V   	; 
+	                          		AO_2;
+//--------------------------------------------
+	AI3;									
+//--------------------------------------------
+// EL 1008	
+	 bHydraulicUnitRunning		:=  DI2_1;
+	 bTopPreserClosed           :=  DI2_2;
+	 bTopPreserMotorOk          :=  DI2_3;
+	 bHydraulicUnitMotorOk      :=  DI2_4;
+	 bHydraulicUnitCmdStop      :=  DI2_5;
+	 bOilLevelOk                :=  DI2_6;
+	 bEstopOk                   :=  DI2_7;
+	                                DI2_8;
+	
+//--------------------------------------------
+//EL 2008
+	DO2_1:=bTopPreserUp ;
+	DO2_2:=bTopPreserDown ;
+	DO2_3:=bHydraulicUintOn ;
+	DO2_4:=bLedCycleOn ;
+	DO2_5:=bReliefValveOn ;
+	DO2_6:=bCylinderValveUp ;
+	DO2_7:=bCylinderValveDown ;
+	DO2_8:=bProportionalValveEnable AND  .bCylinderValveUp ;]]></ST>
+    </Implementation>
+    <LineIds Name="IO_Map">
+      <LineId Id="6" Count="6" />
+      <LineId Id="49" Count="0" />
+      <LineId Id="13" Count="0" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="15" Count="9" />
+      <LineId Id="73" Count="2" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="82" Count="1" />
+      <LineId Id="29" Count="19" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

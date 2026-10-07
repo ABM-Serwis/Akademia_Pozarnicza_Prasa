@@ -1,0 +1,73 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="FB_AI_mA_To_mm_Adv" Id="{0174c740-a031-4f45-be9f-a66faaeda598}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_AI_mA_To_mm_Adv
+VAR_INPUT
+    // Wejście prądowe (już w mA)
+    In_mA        : REAL;       // np. 4.0 ... 20.0 mA
+    InMin_mA     : REAL := 4.0;
+    InMax_mA     : REAL := 20.0;
+
+    // Zakres mechaniczny w mm
+    MM_Min       : REAL;       // np. 0.0 mm
+    MM_Max       : REAL;       // np. 1000.0 mm
+
+    // Progi diagnostyczne
+    LowLimit_mA  : REAL := 3.6;
+    HighLimit_mA : REAL := 21.0;
+END_VAR
+
+VAR_OUTPUT
+    Out_mA       : REAL;        // prąd wejściowy (przepisany)
+    MM_Value     : REAL;        // pozycja w mm
+    MM_Percent   : REAL;        // 0–100 %
+    Status       : E_AI_Status;
+    Valid        : BOOL;
+END_VAR
+
+VAR
+    ratioRaw, ratioClamped : REAL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[// ---- Sprawdzenie poprawności konfiguracji ----
+IF InMax_mA <= InMin_mA THEN
+    Status      := AI_Status_ConfigError;
+    Valid       := FALSE;
+    Out_mA      := InMin_mA;
+    MM_Value    := MM_Min;
+    MM_Percent  := 0.0;
+ELSE
+    // ---- Krok 1: mA → udział 0..1 (bez ograniczania) ----
+    ratioRaw := (In_mA - InMin_mA) / (InMax_mA - InMin_mA);
+
+    // ---- Krok 2: diagnostyka na surowym prądzie ----
+    Out_mA := In_mA;
+
+    IF Out_mA < LowLimit_mA THEN
+        Status := AI_Status_UnderRange;
+        Valid  := FALSE;
+    ELSIF Out_mA > HighLimit_mA THEN
+        Status := AI_Status_OverRange;
+        Valid  := FALSE;
+    ELSE
+        Status := AI_Status_Ok;
+        Valid  := TRUE;
+    END_IF;
+
+    // ---- Krok 3: zacięcie udziału 0..1 ----
+    ratioClamped := ratioRaw;
+    IF ratioClamped < 0.0 THEN ratioClamped := 0.0; END_IF;
+    IF ratioClamped > 1.0 THEN ratioClamped := 1.0; END_IF;
+
+    // ---- Krok 4: 0..1 → mm ----
+    MM_Value   := MM_Min + ratioClamped * (MM_Max - MM_Min);
+    MM_Percent := ratioClamped * 100.0;
+END_IF;]]></ST>
+    </Implementation>
+    <LineIds Name="FB_AI_mA_To_mm_Adv">
+      <LineId Id="36" Count="32" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

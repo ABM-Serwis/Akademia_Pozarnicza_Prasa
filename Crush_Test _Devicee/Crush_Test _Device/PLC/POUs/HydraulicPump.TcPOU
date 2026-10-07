@@ -1,0 +1,85 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="HydraulicPump" Id="{d8e36b58-4db9-44c2-9c45-ab5cfd7aa7ab}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM HydraulicPump
+VAR
+    
+	fbHydPump: FB_HydraulicPumpControl;
+	
+	bMaxPressure: BOOL;
+	
+	fbBlink: FB_Blink_S_1;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[fbHydPump(
+	bStart         := bHydraulicUnitCmdStart,
+    bStop          := bHydraulicUnitCmdStop AND NOT.bCylinderCmdDown,
+    bEmergencyStop := bEStopOk,          // NC – 0=wciśnięty
+    bThermalOk     := bHydraulicUnitMotorOk,        // NC – 0=zadziałany
+    bPressureOk    := NOT bMaxPressure,   // czujnik NO → inwertujemy
+	bOilLevel	   := TRUE,
+    bEnable        := bControlOn,
+	bPumpRun=> bLedHydraulicUnitOn, 
+	bRunning=>.bHydraulicUintOn , 
+	bFault=> , 
+	bReady=> , 
+	bFaultThermal=> , 
+	bFaultPressure=> );
+(*
+Q_PumpContactor := HydPump.bPumpRun;
+HMI_Alarm       := HydPump.bFault;
+HMI_Ready       := HydPump.bReady;
+HMI_ThermalErr  := HydPump.bFaultThermal;
+HMI_PressureErr := HydPump.bFaultPressure;
+*)
+
+//=======================================================================
+//			MAX. CIŚNIENIE
+bMaxPressure:=Scaling.PressureAI.PV_Value>390;
+//=======================================================================
+//		ENABLE NA ZAWÓR PROPORCJONlNY
+bProportionalValveEnable:= .bEstopOk AND (bCylinderValveUp or bCylinderValveDown);
+//=======================================================================
+//			LED HYDRAULIKA ZAŁACZONA
+fbBlink(Tv:=T#400MS , Q=> );
+
+IF bHydraulicUintOn THEN
+ IF NOT bHydraulicUnitRunning THEN
+	bLedHydraulicUnitOn:=fbBlink.Q;
+	ELSIF
+		 bHydraulicUnitRunning THEN
+		 bLedHydraulicUnitOn:=bHydraulicUintOn;
+		
+	END_IF	
+	ELSE
+			bLedHydraulicUnitOn:=FALSE;
+END_IF
+//=========================================================================]]></ST>
+    </Implementation>
+    <LineIds Name="HydraulicPump">
+      <LineId Id="54" Count="0" />
+      <LineId Id="66" Count="4" />
+      <LineId Id="78" Count="0" />
+      <LineId Id="60" Count="5" />
+      <LineId Id="14" Count="5" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="108" Count="0" />
+      <LineId Id="107" Count="0" />
+      <LineId Id="109" Count="0" />
+      <LineId Id="103" Count="1" />
+      <LineId Id="110" Count="0" />
+      <LineId Id="105" Count="0" />
+      <LineId Id="102" Count="0" />
+      <LineId Id="106" Count="0" />
+      <LineId Id="88" Count="0" />
+      <LineId Id="87" Count="0" />
+      <LineId Id="86" Count="0" />
+      <LineId Id="98" Count="0" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="92" Count="3" />
+      <LineId Id="99" Count="2" />
+      <LineId Id="96" Count="1" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

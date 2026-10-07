@@ -1,0 +1,86 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="FB_HydraulicPumpControl" Id="{83ff4d7d-19ef-48f6-8d5b-cf9137a1654b}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_HydraulicPumpControl
+// Sterowanie pompą hydrauliczną – 
+VAR_INPUT
+    bStart          : BOOL;  // Przycisk START (impulsowy lub podtrzymany)
+    bStop           : BOOL;  // Przycisk STOP
+    bEmergencyStop  : BOOL := TRUE;   // E-Stop (NC → 0 = wciśnięty)
+    bThermalOk      : BOOL := TRUE;   // Zabezpieczenie termiczne silnika (NC → 0 = zadziałane)
+    bPressureOk     : BOOL := TRUE;   // Czujnik ciśnienia – OK gdy NIE ma nadciśnienia (NO → 1 = za wysokie → po inwersji)
+	bOilLevel		: BOOL := TRUE;	  // Czujnik poziomu oleju OK=1
+    bEnable         : BOOL := TRUE;   // Zewnętrzne zezwolenie na pracę (np. tryb auto)
+END_VAR
+
+VAR_OUTPUT
+    bPumpRun        : BOOL;  // Wyjście na stycznik pompy
+    bRunning        : BOOL;  // Pompa aktualnie pracuje
+    bFault          : BOOL;  // Błąd wymagający kasowania (termik lub nadciśnienie)
+    bReady          : BOOL;  // Wszystko sprawne i gotowe do startu
+    bFaultThermal   : BOOL;  // Szczegółowy powód błędu – termik
+    bFaultPressure  : BOOL;  // Szczegółowy powód błędu – nadciśnienie
+END_VAR
+
+VAR
+    bInternalRun    : BOOL := FALSE;     // Wewnętrzny stan pracy (z pamięcią)
+    bFaultLatched   : BOOL := FALSE;     // Ręczny latch na błąd (zamiast SR)
+    bSafetyOk       : BOOL;              // Aktualny stan bezpieczeństwa
+    bFirstCycle     : BOOL := TRUE;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[//===================================================================
+// Główna logika sterowania pompą – 
+//===================================================================
+
+IF bFirstCycle THEN
+    bFirstCycle := FALSE;
+END_IF;
+
+// 1. Aktualny stan bezpieczeństwa (musi być spełniony w każdej chwili)
+bSafetyOk := bEmergencyStop          // E-Stop zwolniony
+             AND bThermalOk          // Termik nie zadziałał
+             AND bPressureOk         // Ciśnienie w normie
+             AND bEnable            // Zewnętrzne zezwolenie
+			AND bOilLevel;
+// 2. Ręczny latch błędu (zapamiętujemy tylko termik, poziom i nadciśnienie)
+IF NOT bSafetyOk AND (NOT bThermalOk OR NOT bOilLevel OR NOT bPressureOk) THEN
+    bFaultLatched := TRUE;                       // SET – zapamiętaj błąd
+END_IF;
+
+IF bSafetyOk AND (bStart OR NOT bStop) THEN
+    bFaultLatched := FALSE;                      // RST – kasowanie po potwierdzeniu
+END_IF;
+
+// 3. Natychmiastowe wyłączenie przy braku bezpieczeństwa
+IF NOT bSafetyOk THEN
+    bInternalRun := FALSE;
+END_IF;
+
+// 4. Logika ręcznego start/stop (działa tylko gdy nie ma zapamiętanego błędu)
+IF NOT bFaultLatched AND bSafetyOk THEN
+    IF bStart AND NOT NOT bStop THEN
+        bInternalRun := TRUE;                    // Start ma przewagę nad Stop
+    ELSIF NOT bStop THEN
+        bInternalRun := FALSE;
+    END_IF;
+END_IF;
+
+// 5. Wyjścia końcowe
+bPumpRun   := bInternalRun AND bSafetyOk;        // Ostateczne wyjście na stycznik
+bRunning   := bPumpRun;
+
+bReady     := bSafetyOk AND NOT bFaultLatched;   // Zielone światło na HMI
+
+bFault     := bFaultLatched OR NOT bEmergencyStop;  // Stały alarm przy błędzie lub E-Stop
+
+// 6. Szczegółowe przyczyny błędu (bardzo przydatne na HMI)
+bFaultThermal   := bFaultLatched AND NOT bThermalOk;
+bFaultPressure  := bFaultLatched AND NOT bPressureOk;]]></ST>
+    </Implementation>
+    <LineIds Name="FB_HydraulicPumpControl">
+      <LineId Id="147" Count="46" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

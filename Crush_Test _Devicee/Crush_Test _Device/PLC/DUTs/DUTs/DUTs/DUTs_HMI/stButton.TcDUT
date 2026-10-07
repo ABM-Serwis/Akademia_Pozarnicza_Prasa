@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="stButton" Id="{9800a24b-602a-4a37-992a-a2f06e82be12}">
+    <Declaration><![CDATA[TYPE stButton :
+STRUCT
+	{attribute 'TcEncoding':='UTF-8'}
+	sName				: T_MaxString;
+	bToggleCollor		: BOOL;
+	bVisable			: BOOL;
+	nIndexDynamicText	: UINT;
+	dwColor				: DWORD;
+	dwAlarmColor		: DWORD;
+	
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

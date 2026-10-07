@@ -1,0 +1,148 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.16">
+  <POU Name="BreakthroughDetection_2" Id="{5304bb06-45db-483e-aad0-f4a4e45f88c7}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM BreakthroughDetection_2
+VAR
+	fbBreakDetect		: FB_HydraulicPress_WithBreakthroughDetection_1;
+	rtAutoStart			: R_TRIG;
+	rtBreak				: R_TRIG;
+	fbPvTo420mA			: FB_PV_To4_20mA;
+	fb4_20_to_0_10V		: FB_4_20mA_To_0_10V;
+	fbDownLatch			: FB_LongPressLatch;
+	TempOut				: REAL;
+	bBreakDetected		: BOOL;
+	rPressAtBreak		: REAL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+(*
+	Ciśnienie albo siła wybiera GVL_ForceMode.bModeForce.
+	Zakres tensometru: GVL_ForceMode.bForceRange100t (FALSE = 50 t, TRUE = 100 t).
+	Napięcie celi: GVL_ForceMode.nForceInput_V, kanał 0–10 V, roboczo 0–2,5 V.
+
+	Setpointy ciśnienia zostają na swoich wejściach.
+	Drugi setpoint (siła) idzie na Force_Setpoint_*.
+	Valve_Proportional wraca w barach — skalowanie 0..400 bar na 4..20 mA jest bez zmian.
+*)
+fbBreakDetect(
+	Enable							:= bControlOn AND bEstopOk AND bCycleStopCmd,
+	Mode_Manual						:= Mode.bManualMode,
+	Cmd_Up_Manual					:= bCylinderCmdUp OR rtAutoStart.Q,
+	Cmd_Down_Manual					:= fbDownLatch.Out,
+	Pressure_Setpoint_Manual		:= GVL_HMI.nPressureSetpointManual,
+	Pressure_Min_Auto				:= GVL_HMI.PressureSetpointAutoMin,
+	Pressure_Max_Auto				:= GVL_HMI.PressureSetpointAutoMax,
+	Position_Actual					:= Scaling.fbPos.PosZeroed_mm,
+	Pressure_Actual					:= Scaling.PressureAI.PV_Value,
+	Breakthrough_DeltaPress			:= GVL_HMI.nBreakDeltaPress,
+	Breakthrough_DeltaPos			:= GVL_HMI.nBreakDeltaPos,
+	Breakthrough_TimeWindow			:= GVL_HMI.tBreak_Time_Window,
+	Ramp_Time						:= TO_TIME((GVL_HMI.nRamp_Time) * 1000),
+	Mode_Force						:= GVL_ForceMode.bModeForce,
+	Force_Setpoint_Manual			:= GVL_ForceMode.nForceSetpointManual,
+	Force_Min_Auto					:= GVL_ForceMode.nForceSetpointAutoMin,
+	Force_Max_Auto					:= GVL_ForceMode.nForceSetpointAutoMax,
+	Force_Input_V					:= GVL_ForceMode.nForceInput_V,
+	Force_Range_100t				:= GVL_ForceMode.bForceRange100t,
+	Breakthrough_DeltaForce			:= GVL_ForceMode.nBreakDeltaForce,
+	Valve_Proportional				=> TempOut,
+	Coil_Up							=> bCylinderValveUp,
+	Coil_Down						=> bCylinderValveDown,
+	Valve_Relief					=> bReliefValveOn,
+	Active							=> ,
+	Auto_Active						=> bLedCycleOn,
+	Breakthrough_Detected			=> bBreakDetected,
+	Press_At_Break					=> rPressAtBreak,
+	Pos_At_Break					=> GVL_HMI.nPositionBreak,
+	Pos_At_Start					=> GVL_HMI.nPositionStart,
+	Alarm							=> ,
+	Force_Actual_t					=> GVL_ForceMode.nForce_t,
+	Force_Actual_kg					=> GVL_ForceMode.nForce_kg,
+	Force_Actual_N					=> GVL_ForceMode.nForce_N,
+	Force_Actual_kN					=> GVL_ForceMode.nForce_kN,
+	Force_pct						=> GVL_ForceMode.nForce_pct,
+	Force_FullScale_t				=> GVL_ForceMode.nForceFullScale_t,
+	Force_At_Break					=> ,
+	Force_At_Break_kg				=> ,
+	Force_At_Break_N				=> ,
+	Force_At_Break_kN				=> ,
+	Force_SensorOk					=> GVL_ForceMode.bForceSensorOk,
+	Force_Overrange					=> GVL_ForceMode.bForceOverrange,
+	Force_Underrange				=> GVL_ForceMode.bForceUnderrange,
+	Force_SetpointLimited			=> GVL_ForceMode.bForceSetpointLimited,
+	Force_CfgFault					=> GVL_ForceMode.bForceCfgFault,
+	Force_Target					=> GVL_ForceMode.nForce_Target,
+	Force_Setpoint_Manual_Eff		=> GVL_ForceMode.nForceSetpointManual_Eff,
+	Force_Min_Auto_Eff				=> GVL_ForceMode.nForceSetpointAutoMin_Eff,
+	Force_Max_Auto_Eff				=> GVL_ForceMode.nForceSetpointAutoMax_Eff,
+	Breakthrough_DeltaForce_Eff		=> GVL_ForceMode.nBreakDeltaForce_Eff,
+	Motion_Hold						=> GVL_ForceMode.bMotionHold);
+
+// W trybie siły nie wpisujemy ton w pole ciśnienia przebicia.
+IF NOT GVL_ForceMode.bModeForce THEN
+	GVL_HMI.nPressBreak := rPressAtBreak;
+END_IF
+
+GVL_ForceMode.bForceInhibit := GVL_ForceMode.bModeForce AND NOT GVL_ForceMode.bForceSensorOk;
+GVL_ForceMode.bRegulatorActive := fbBreakDetect.Active;
+GVL_ForceMode.bAlarm := fbBreakDetect.Alarm OR (GVL_ForceMode.bModeForce AND GVL_ForceMode.bForceCfgFault);
+IF GVL_ForceMode.bModeForce THEN
+	GVL_ForceMode.nActiveSetpointManual := GVL_ForceMode.nForceSetpointManual_Eff;
+	GVL_ForceMode.nActiveActual := GVL_ForceMode.nForce_t;
+ELSE
+	GVL_ForceMode.nActiveSetpointManual := GVL_HMI.nPressureSetpointManual;
+	GVL_ForceMode.nActiveActual := Scaling.PressureAI.PV_Value;
+END_IF
+
+//============================================================
+rtAutoStart(CLK:= mode.fbMode.bAutoDelayed, Q=> );
+//============================================================
+fbPvTo420mA(
+	PV:= TempOut,
+	PV_Min:= 0.0,
+	PV_Max:= 400.0,
+	ClampOutput:= TRUE,
+	I_mA=> nHydraulicPressureOut,
+	Error=> );
+//=============================================================
+fb4_20_to_0_10V(I_mA:= nHydraulicPressureOut, ClampOutput:= TRUE, U_V=> nHydraulicPressureOut0_10V, Error=> );
+//=============================================================
+fbDownLatch(
+	Enable:= TRUE,
+	In:= bCylinderCmdDown,
+	ResetLatch:= NOT bControlOn OR NOT bEstopOk OR NOT bCycleStopCmd OR rtAutoStart.Q OR bCylinderCmdUp OR (Scaling.fbPos.PosZeroed_mm = 0) OR GVL_ForceMode.bMotionHold,
+	LongTime:= T#3S,
+	Out=> ,
+	Latched=> );
+//==============================================================
+//			Siła przebicia do HMI
+//==============================================================
+rtBreak(CLK:= bBreakDetected, Q=> );
+
+IF rtBreak.Q THEN
+	GVL_HMI.nForce_t_Break := fbBreakDetect.Force_At_Break;
+	GVL_HMI.nForce_kg_Break := fbBreakDetect.Force_At_Break_kg;
+	GVL_HMI.nForce_N_Break := fbBreakDetect.Force_At_Break_N;
+	GVL_HMI.nForce_kN_Break := fbBreakDetect.Force_At_Break_kN;
+END_IF
+
+IF GVL_ForceMode.bModeForce THEN
+	GVL_HMI.Force_kg := GVL_ForceMode.nForce_kg;
+	GVL_HMI.Force_N := GVL_ForceMode.nForce_N;
+	IF rtBreak.Q THEN
+		GVL_HMI.Force_kg_2 := fbBreakDetect.Force_At_Break_kg;
+		GVL_HMI.Force_N_2 := fbBreakDetect.Force_At_Break_N;
+	END_IF
+ELSIF bBreakDetected THEN
+	GVL_HMI.Force_kg_2 := GVL_HMI.Force_kg;
+	GVL_HMI.Force_N_2 := GVL_HMI.Force_N;
+END_IF
+]]></ST>
+    </Implementation>
+    <LineIds Name="BreakthroughDetection_2">
+      <LineId Id="3" Count="122" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

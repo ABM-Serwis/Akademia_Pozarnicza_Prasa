@@ -1,0 +1,52 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="FB_4_20mA_To_0_10V" Id="{663f9f72-ef0b-47a1-879a-d961ad008144}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_4_20mA_To_0_10V
+VAR_INPUT
+    I_mA         : LREAL; (* prąd wejściowy w mA *)
+    ClampOutput  : BOOL;  (* TRUE – ogranicz wyjście do 0–10 V *)
+END_VAR
+
+VAR_OUTPUT
+    U_V     : LREAL; (* napięcie wyjściowe w V *)
+    Error   : BOOL;  (* TRUE gdy prąd < 4 mA lub > 20 mA *)
+END_VAR
+
+VAR
+    spanI  : LREAL := 16.0; (* 20 mA - 4 mA *)
+    spanU  : LREAL := 10.0; (* 10 V - 0 V *)
+    tmpU   : LREAL;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(* --------------------------------------------- *)
+(* Konwersja 4–20 mA -> 0–10 V                   *)
+(* U = (I - 4) * 10 / 16                         *)
+(* --------------------------------------------- *)
+
+Error := FALSE;
+
+(* detekcja błędu zakresu *)
+IF (I_mA < 4.0) OR (I_mA > 20.0) THEN
+    Error := TRUE;
+END_IF;
+
+(* skalowanie *)
+tmpU := (I_mA - 4.0) * spanU / spanI;
+
+(* opcjonalne ograniczenie *)
+IF ClampOutput THEN
+    IF tmpU < 0.0 THEN
+        tmpU := 0.0;
+    ELSIF tmpU > 10.0 THEN
+        tmpU := 10.0;
+    END_IF;
+END_IF;
+
+U_V := tmpU;]]></ST>
+    </Implementation>
+    <LineIds Name="FB_4_20mA_To_0_10V">
+      <LineId Id="24" Count="23" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

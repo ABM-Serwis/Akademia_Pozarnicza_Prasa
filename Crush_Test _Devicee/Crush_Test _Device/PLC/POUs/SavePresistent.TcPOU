@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="SavePresistent" Id="{3d257d62-9ca1-4b9f-9360-0b1ff7a8c3cf}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM SavePresistent
+VAR
+	fbZapisZmiennychPresistent: FB_WritePersistentData;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[fbZapisZmiennychPresistent(
+	NETID:= , 
+	PORT:=851, 
+	START:= .bEstopOk OR .bCycleStartCmd OR .bCycleStopCmd OR .bControlOn, 
+	TMOUT:=T#2000MS , 
+	MODE:=SPDM_2PASS , 
+	BUSY=> , 
+	ERR=> , 
+	ERRID=> );
+	
+]]></ST>
+    </Implementation>
+    <LineIds Name="SavePresistent">
+      <LineId Id="3" Count="7" />
+      <LineId Id="2" Count="0" />
+      <LineId Id="15" Count="1" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

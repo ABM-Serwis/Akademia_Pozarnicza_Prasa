@@ -1,0 +1,36 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="UpperPreserDrive" Id="{7039e87a-c5a8-4af5-aaec-fe52d9ca3e28}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM UpperPreserDrive
+VAR
+	fbUupperPreser: FB_RevMotorControl;
+	
+	bStop: BOOL;
+	
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[fbUupperPreser(
+	bForward:=.bTopPreserCmdDown , 
+	bReverse:=.bTopPreserCmdUp , 
+	bStop:=bStop , 
+	bThermalOk:=.bTopPreserMotorOk , 
+	bLimitSwitchFwd:=TRUE , 
+	bLimitSwitchRev:=.bTopPreserClosed , 
+	bEmergencyStop:=.bEstopOk , 
+	bEnable:=bControlOn , 
+	bRunForward=>.bTopPreserDown , 
+	bRunReverse=>.bTopPreserUp , 
+	bRunning=> , 
+	bFault=> , 
+	bReady=> );
+	
+	]]></ST>
+    </Implementation>
+    <LineIds Name="UpperPreserDrive">
+      <LineId Id="7" Count="12" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="33" Count="1" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

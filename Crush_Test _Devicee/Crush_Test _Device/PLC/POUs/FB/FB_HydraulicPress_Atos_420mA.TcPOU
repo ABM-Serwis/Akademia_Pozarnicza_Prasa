@@ -1,0 +1,245 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="FB_HydraulicPress_Atos_420mA" Id="{48eb3fc3-9fc9-47b4-8128-411e382f293d}" SpecialFunc="None">
+    <Declaration><![CDATA[
+FUNCTION_BLOCK FB_HydraulicPress_Atos_420mA
+// ===============================================
+//  Prasa / stanowisko wytrzymałościowe
+//  Enkoder 4-20mA + zawór Atos + E-BM-AS-PS-01H/I
+//  Bez zewnętrznych bibliotek – działa wszędzie
+// ===============================================
+
+VAR_INPUT
+    Enable                  : BOOL := FALSE;      // Włączenie całego układu
+    Mode_Manual             : BOOL := TRUE;       // TRUE = ręczny, FALSE = auto
+    Cmd_Up                  : BOOL := FALSE;      // Start / góra (dwuręczny w auto)
+    Cmd_Down                : BOOL := FALSE;      // Ręczny dół
+
+    Pressure_Setpoint_Manual: REAL := 100.0;      // Zadane ciśnienie ręczne [bar]
+    Pressure_Min_Auto       : REAL := 30.0;       // Ciśnienie startowe w auto [bar]
+    Pressure_Max_Auto       : REAL := 180.0;      // Ciśnienie maksymalne w auto [bar]
+
+    // Surowe sygnały z wejść analogowych (4-20mA)
+    Raw_Position_mA         : REAL;               // np. z EL31xx
+    Raw_Pressure_mA         : REAL;
+
+    // Ustawienia sprzętowe (dostosuj pod siebie!)
+    Cylinder_Stroke_mm      : REAL := 100.0;      // pełny skok siłownika [mm]
+    Pressure_Sensor_Range   : REAL := 400.0;      // zakres czujnika ciśnienia [bar]
+
+    // Parametry detekcji przebicia
+    Break_Delta_Press       : REAL := 18.0;       // spadek ciśnienia [bar]
+    Break_Delta_Pos         : REAL := 2.5;        // przyrost pozycji [mm]
+    Break_Time_Window       : TIME := T#120ms;
+
+    // Czas rampy ciśnienia (narastanie i opadanie)
+    Ramp_Time               : TIME := T#1200MS;
+
+END_VAR
+
+VAR_OUTPUT
+    Valve_Proportional_mA   : REAL := 4.0;        // wyjście 4-20mA do Atos
+    Coil_Up                 : BOOL := FALSE;
+    Coil_Down               : BOOL := FALSE;
+    Valve_Relief            : BOOL := FALSE;      // odciążający – otwarty przy ruchu
+
+    Position_mm             : REAL;              // aktualna pozycja [mm]
+    Pressure_bar            : REAL;              // aktualne ciśnienie [bar]
+
+    Auto_Running            : BOOL := FALSE;
+    Breakthrough_Detected   : BOOL := FALSE;
+    Press_At_Breakthrough   : REAL := 0.0;
+    Pos_At_Breakthrough     : REAL := 0.0;
+    Alarm                   : BOOL := FALSE;
+END_VAR
+
+VAR
+    // --- wewnętrzne ---
+    CycleTime_s             : REAL := 0.010;      // <-- ZMIEŃ na swój czas cyklu (0.002 = 2ms, 0.005 = 5ms itd.)
+
+    State                   : INT := 0;           // 0=stop, 1=góra, 2=dół
+
+    Ramp_Target_mA          : REAL := 4.0;
+    Ramp_Current_mA         : REAL := 4.0;
+    Ramp_Rate_mA_per_s      : REAL := 10.0;       // będzie przeliczana
+
+    Desired_Pressure        : REAL := 0.0;
+
+    // detekcja przebicia
+    Prev_Press              : REAL := 0.0;
+    Prev_Pos                : REAL := 0.0;
+    Timer_Break             : TON;
+    Break_Latched           : BOOL := FALSE;
+
+    FirstCycle              : BOOL := TRUE;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[//==========================================================================
+//                        GŁÓWNA LOGIKA
+//==========================================================================
+
+// Reset przy braku Enable
+IF NOT Enable THEN
+    Valve_Proportional_mA := 4.0;
+    Coil_Up := FALSE; Coil_Down := FALSE; Valve_Relief := FALSE;
+    Auto_Running := FALSE; Alarm := FALSE; Break_Latched := FALSE;
+    Breakthrough_Detected := FALSE;
+    State := 0;
+    Ramp_Current_mA := 4.0;
+    RETURN;
+END_IF;
+
+// Skalowanie sygnałów 4-20mA → jednostki fizyczne
+Position_mm  := (Raw_Position_mA  - 4.0) / 16.0 * Cylinder_Stroke_mm;
+Position_mm  := LIMIT(0.0, Position_mm, Cylinder_Stroke_mm);
+
+Pressure_bar := (Raw_Pressure_mA  - 4.0) / 16.0 * Pressure_Sensor_Range;
+Pressure_bar := LIMIT(0.0, Pressure_bar, Pressure_Sensor_Range);
+
+// Pierwsze wywołanie – zapamiętaj wartości początkowe
+IF FirstCycle THEN
+    Prev_Press := Pressure_bar;
+    Prev_Pos   := Position_mm;
+    FirstCycle := FALSE;
+END_IF;
+
+//======================================================================
+// 1. Wybór trybu i komend
+//======================================================================
+IF Mode_Manual THEN
+    // ------------------ TRYBY RĘCZNY ------------------
+    Auto_Running := FALSE;
+    Break_Latched := FALSE;
+    Breakthrough_Detected := FALSE;
+
+    IF Cmd_Up AND NOT Cmd_Down THEN
+        State := 1;
+        Desired_Pressure := GVL_HMI.nPressureSetpointManual;
+		Valve_Proportional_mA := LIMIT(4.0, Ramp_Current_mA  , 20.0);
+    ELSIF Cmd_Down AND NOT Cmd_Up THEN
+        State := 2;
+        Desired_Pressure := Pressure_Setpoint_Manual;
+		Valve_Proportional_mA := LIMIT(4.0, Ramp_Current_mA  , 20.0);
+    ELSE
+        State := 0;
+        Desired_Pressure := 0.0;
+		Valve_Proportional_mA := 4.0;
+    END_IF
+
+ELSE
+    // ------------------ TRYB AUTOMATYCZNY ------------------
+    IF Cmd_Up AND NOT Break_Latched THEN
+        Auto_Running := TRUE;
+        State := 1;
+		
+        // ciśnienie będzie narastać od min do max wraz z pozycją
+    END_IF
+
+    IF Break_Latched THEN
+        State := 0;
+        Auto_Running := FALSE;
+    END_IF
+END_IF
+IF Auto_Running THEN
+	Valve_Proportional_mA := LIMIT(4.0, Ramp_Current_mA + (Pressure_Min_Auto-4), 20.0);
+END_IF
+//======================================================================
+// 2. Sterowanie kierunkiem i zaworem odciążającym
+//======================================================================
+Coil_Up      := (State = 1);
+Coil_Down    := (State = 2);
+Valve_Relief := (State = 1) OR (State = 2);   // pompa odciążona przy każdym ruchu
+
+//======================================================================
+// 3. Oblicz docelowe ciśnienie
+//======================================================================
+IF Auto_Running AND State = 1 THEN
+    // Narastanie ciśnienia w funkcji pozycji (mały ruch na początku → wolny wzrost)
+    Desired_Pressure := Pressure_Min_Auto 
+                        + (Pressure_Max_Auto - Pressure_Min_Auto); 
+//                         // * (Position_mm / 60.0);        // 60 mm = pełny wzrost ciśnienia (dostosuj!)
+    Desired_Pressure := LIMIT(Pressure_Min_Auto, Desired_Pressure, Pressure_Max_Auto);
+END_IF;
+
+// Przy opuszczaniu i stopie zawsze 0 bar
+IF State <> 1 THEN
+    Desired_Pressure := 0.0;
+END_IF;
+
+//======================================================================
+// 4. Przeliczenie zadanego ciśnienia → prąd 4-20mA
+//======================================================================
+
+Ramp_Target_mA := ((Desired_Pressure+4) - Raw_Pressure_mA);
+
+/////////Ramp_Target_mA := 4.0 + 16.0 * (Desired_Pressure / Pressure_Sensor_Range);
+Ramp_Target_mA := LIMIT(4.0, Ramp_Target_mA, 20.0);
+
+//======================================================================
+// 5. Rampa ręczna (bez biblioteki)
+//======================================================================
+Ramp_Rate_mA_per_s := 16.0 / TIME_TO_REAL(Ramp_Time);   // ile mA na sekundę
+
+IF Ramp_Target_mA > Ramp_Current_mA THEN
+    Ramp_Current_mA := Ramp_Current_mA + Ramp_Rate_mA_per_s * CycleTime_s;
+    IF Ramp_Current_mA > Ramp_Target_mA THEN Ramp_Current_mA := Ramp_Target_mA; END_IF;
+ELSIF Ramp_Target_mA < Ramp_Current_mA THEN
+    Ramp_Current_mA := Ramp_Current_mA - Ramp_Rate_mA_per_s * CycleTime_s;
+    IF Ramp_Current_mA < Ramp_Target_mA THEN Ramp_Current_mA := Ramp_Target_mA; END_IF;
+END_IF;
+
+// Valve_Proportional_mA := LIMIT(4.0, Ramp_Current_mA + Pressure_Min_Auto, 20.0);
+
+//======================================================================
+// 6. Detekcja przebicia materiału
+//======================================================================
+IF State = 1 THEN
+    IF (Prev_Press - Pressure_bar) > Break_Delta_Press 
+       AND (Position_mm - Prev_Pos) > Break_Delta_Pos THEN
+        Timer_Break(IN := TRUE, PT := Break_Time_Window);
+        IF Timer_Break.Q THEN
+            Break_Latched         := TRUE;
+            Breakthrough_Detected := TRUE;
+            Press_At_Breakthrough := Pressure_bar;
+            Pos_At_Breakthrough   := Position_mm;
+            Alarm                 := TRUE;
+        END_IF
+    ELSE
+        Timer_Break(IN := FALSE);
+    END_IF
+ELSE
+    Timer_Break(IN := FALSE);
+END_IF
+
+//======================================================================
+// 7. Zatrzymanie po przebiciu
+//======================================================================
+IF Break_Latched THEN
+    State := 0;
+    Valve_Proportional_mA := 4.0;   // natychmiast zamknięty
+END_IF
+
+// Zapamiętaj wartości na następny cykl
+Prev_Press := Pressure_bar;
+Prev_Pos   := Position_mm;]]></ST>
+    </Implementation>
+    <LineIds Name="FB_HydraulicPress_Atos_420mA">
+      <LineId Id="79" Count="40" />
+      <LineId Id="289" Count="0" />
+      <LineId Id="120" Count="2" />
+      <LineId Id="290" Count="0" />
+      <LineId Id="123" Count="2" />
+      <LineId Id="291" Count="0" />
+      <LineId Id="126" Count="6" />
+      <LineId Id="288" Count="0" />
+      <LineId Id="133" Count="7" />
+      <LineId Id="293" Count="0" />
+      <LineId Id="292" Count="0" />
+      <LineId Id="141" Count="26" />
+      <LineId Id="295" Count="1" />
+      <LineId Id="294" Count="0" />
+      <LineId Id="168" Count="48" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>
