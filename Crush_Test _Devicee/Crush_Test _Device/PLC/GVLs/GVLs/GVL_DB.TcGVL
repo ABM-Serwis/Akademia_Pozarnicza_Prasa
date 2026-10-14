@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <GVL Name="GVL_DB" Id="{8a78fb61-3a7b-4d22-803a-2fcd04c4858a}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+{attribute 'pack_mode' := '1'}
+VAR_GLOBAL
+	
+	stRtData		: ST_RT_StrengthAnalysis;
+	stStaticData	: ST_STATIC_StrengthAnalysis;
+	stTrigersData	: ST_TRIGERS_StrengthAnalysis;
+	
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

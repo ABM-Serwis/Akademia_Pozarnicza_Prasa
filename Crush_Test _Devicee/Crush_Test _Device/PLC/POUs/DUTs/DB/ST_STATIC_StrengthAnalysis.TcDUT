@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <DUT Name="ST_STATIC_StrengthAnalysis" Id="{982bcac9-3b77-4932-b42d-ffc16604df0d}">
+    <Declaration><![CDATA[{attribute 'pack_mode' := '1'}
+TYPE ST_STATIC_StrengthAnalysis :
+STRUCT
+	
+	fHMI_PressureSetpointManual				: REAL;
+	fHMI_PressureSetpointAutoMax			: LREAL;
+	fHMI_PressureSetpointAutoMin			: LREAL;
+	fHMI_BreakDeltaPress					: REAL;
+	fHMI_BreakDeltaPos						: REAL;
+	
+	nHMI_Ramp_Time							: DINT;
+	nHMI_Break_Time_Window					: INT;
+	
+	fScaling_Pos_PosZeroed_mm				: REAL;			
+	bForceMode_ForceRange100t				: BOOL;
+
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

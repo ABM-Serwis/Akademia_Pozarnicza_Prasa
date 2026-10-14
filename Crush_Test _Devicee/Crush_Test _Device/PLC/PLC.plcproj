@@ -53,6 +53,9 @@
     <Compile Include="GVLs\GVLs\GVLs\GVLs_Events\GVL_Event.TcGVL">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="GVLs\GVLs\GVL_DB.TcGVL">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="GVLs\GVLs_1\GVL_Recipe.TcGVL">
       <SubType>Code</SubType>
     </Compile>
@@ -118,6 +121,15 @@
     <Compile Include="POUs\BreakthroughDetection_2.TcPOU">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="POUs\DUTs\DB\ST_RT_StrengthAnalysis.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\DUTs\DB\ST_STATIC_StrengthAnalysis.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\DUTs\DB\ST_TRIGERS_StrengthAnalysis.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="POUs\FB\FB_4_20mA_To_0_10V.TcPOU">
       <SubType>Code</SubType>
     </Compile>
@@ -181,6 +193,9 @@
     <Compile Include="POUs\Mode.TcPOU">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="POUs\POUs\DB_Map.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="POUs\POUs\Events\F_RESET_Event.TcPOU">
       <SubType>Code</SubType>
     </Compile>
@@ -203,6 +218,9 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="POUs\POUs\Recipe\RecipeManagement.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\POUs\Zabezpieczenie_Tensometru.TcPOU">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="POUs\Scaling.TcPOU">
@@ -239,6 +257,8 @@
     <Folder Include="HMI\ListyTextowe" />
     <Folder Include="HMI\NEW_VISU" />
     <Folder Include="HMI\NEW_VISU\Frames" />
+    <Folder Include="POUs\DUTs" />
+    <Folder Include="POUs\DUTs\DB" />
     <Folder Include="POUs\FB" />
     <Folder Include="POUs\POUs" />
     <Folder Include="POUs\POUs\Events" />

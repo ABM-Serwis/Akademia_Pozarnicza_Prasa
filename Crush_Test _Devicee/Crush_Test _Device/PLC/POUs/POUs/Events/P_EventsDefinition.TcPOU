@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.16">
   <POU Name="P_EventsDefinition" Id="{74557ff6-8b9b-4e58-8177-67f637887c88}" SpecialFunc="None">
     <Declaration><![CDATA[//==================================================================================================
 //							Beckhoff Automation Poland
@@ -51,7 +51,7 @@ GVL_EHS.arrEventDefinition[1].wsMessage	 	:= "Hydraulika. Zabezpieczenie termicz
 GVL_EHS.arrEventDefinition[2].wsMessage	 	:= "Docisk. Zabezpieczenie termiczne silnika";
 GVL_EHS.arrEventDefinition[3].wsMessage	 	:= "Usterka czujnika pozycji siłownika";
 GVL_EHS.arrEventDefinition[4].wsMessage	 	:= "Usterka czujnika ciśnienia";
-GVL_EHS.arrEventDefinition[5].wsMessage	 	:= "";
+GVL_EHS.arrEventDefinition[5].wsMessage	 	:= "Przeciążenie tensometru";
 GVL_EHS.arrEventDefinition[6].wsMessage	 	:= "";
 GVL_EHS.arrEventDefinition[7].wsMessage	 	:= "";
 GVL_EHS.arrEventDefinition[8].wsMessage	 	:= "";
@@ -82,7 +82,7 @@ GVL_EHS.arrEventDefinition[201].wsMessage 	:= "";]]></ST>
 GVL_EHS.arrEventDefinition[2].bActive:= GVL_Event.aAlarm[2];
 GVL_EHS.arrEventDefinition[3].bActive:= GVL_Event.aAlarm[3];
 GVL_EHS.arrEventDefinition[4].bActive:= GVL_Event.aAlarm[4];
-GVL_EHS.arrEventDefinition[5].bActive:= FALSE;
+GVL_EHS.arrEventDefinition[5].bActive:= GVL_Event.aAlarm[5];
 GVL_EHS.arrEventDefinition[6].bActive:= FALSE;
 GVL_EHS.arrEventDefinition[7].bActive:= FALSE;
 GVL_EHS.arrEventDefinition[8].bActive:= FALSE;

@@ -1,0 +1,31 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <DUT Name="ST_RT_StrengthAnalysis" Id="{aa68f14c-0f86-4c49-b513-b6f406d5f7db}">
+    <Declaration><![CDATA[{attribute 'pack_mode' := '1'}
+TYPE ST_RT_StrengthAnalysis :
+STRUCT
+	
+	dtActTime								: STRING(19);//DT;						// Aktualny czas sytemowy
+	fScaling_PressureAI_PV_Value			: REAL;
+	fScaling_Pos_PosZeroed_mm				: REAL;
+	
+	fForceMode_Force_kN						: REAL;
+	fForceMode_Force_t						: REAL;
+	
+	fHMI_PositionStart						: REAL;
+	fHMI_PositionBreak						: REAL;
+	fHMI_PressBreak							: REAL;
+	fHMI_Force_N 							: REAL;
+	fHMI_Force_kg 							: REAL;
+	
+	(* Zatrzask w chwili wykrycia przebicia — pomiar z tensometru, niezależnie od trybu. *)
+	fHMI_Force_t_Break						: REAL;
+	fHMI_Force_kg_Break						: REAL;
+	fHMI_Force_N_Break						: REAL;
+	fHMI_Force_kN_Break						: REAL;
+
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

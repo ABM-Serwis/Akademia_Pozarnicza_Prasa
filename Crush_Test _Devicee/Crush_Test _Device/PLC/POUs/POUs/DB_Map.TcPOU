@@ -1,0 +1,367 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.16">
+  <POU Name="DB_Map" Id="{09231a34-5016-4388-a287-d67770584f1d}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM DB_Map
+VAR
+	bSymulacjaMode	: UINT := 0;
+	bSimCycleActive : BOOL := FALSE;
+    nSimStep        : UDINT := 0;
+
+    fSimInc         : LREAL;
+	bStart			: BOOL;
+	bStop			: BOOL;
+	
+	fbSimStopDelay  : TON;
+    fbControlDelay  : TON;
+
+    nSimState       : USINT := 0;
+    nSimCycleCount  : USINT := 0;
+
+    bControlOff     : BOOL := FALSE;
+    bControlOnInit  : BOOL := FALSE;
+    bPrevSimStart   : BOOL := FALSE;
+    bSimStartEdge   : BOOL := FALSE;
+	
+	fbSimDelay      : TON;
+    bPrevSimStop    : BOOL := FALSE;
+    bSimStopEdge    : BOOL := FALSE;
+
+	sTempsHMI_Mode										: STRING(254);
+	bTempsControlOn										: BOOL;
+	bTempsCycleStartCmd									: BOOL;
+	bTempsCycleStopCmd									: BOOL;
+	bTempsAutoMode										: BOOL;
+	bTempsBreakthroughDetection_2_BreakDetected			: BOOL;
+	
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+IF bSymulacjaMode = 1  THEN
+
+    //********************************************
+    // stRtData : ST_RT_StrengthAnalysis
+
+    GVL_DB.stRtData.dtActTime := GVL_EHS.dtActTime;
+
+    //********************************************
+    // stStaticData : ST_STATIC_StrengthAnalysis
+
+    GVL_DB.stStaticData.fHMI_PressureSetpointManual := GVL_HMI.nPressureSetpointManual;
+    GVL_DB.stStaticData.fHMI_PressureSetpointAutoMax := GVL_HMI.PressureSetpointAutoMax;
+    GVL_DB.stStaticData.fHMI_PressureSetpointAutoMin := GVL_HMI.PressureSetpointAutoMin;
+    GVL_DB.stStaticData.nHMI_Ramp_Time := GVL_HMI.nRamp_Time;
+    GVL_DB.stStaticData.fHMI_BreakDeltaPress := GVL_HMI.nBreakDeltaPress;
+    GVL_DB.stStaticData.fHMI_BreakDeltaPos := GVL_HMI.nBreakDeltaPos;
+    GVL_DB.stStaticData.nHMI_Break_Time_Window := GVL_HMI.nBreak_Time_Window;
+    GVL_DB.stStaticData.fScaling_Pos_PosZeroed_mm := Scaling.fbPos.PosZeroed_mm;
+    GVL_DB.stStaticData.bForceMode_ForceRange100t := GVL_ForceMode.bForceRange100t;
+
+    //********************************************
+    // stTrigersData : ST_TRIGERS_StrengthAnalysis
+
+    //GVL_DB.stTrigersData.arrEHS_EventVisu := GVL_EHS.arrEventVisu;
+    GVL_DB.stTrigersData.bBreakthroughDetection_2_BreakDetected := BreakthroughDetection_2.bBreakDetected;
+
+    //********************************************
+    // Inicjalizacja ControlOn
+
+    IF NOT bControlOnInit THEN
+        GVL_DB.stTrigersData.bControlOn := TRUE;
+        bControlOnInit := TRUE;
+    END_IF;
+
+    //********************************************
+    // Zbocza sygnałów Start i Stop
+
+    bSimStartEdge :=
+        (GVL.bCycleStartCmd OR bStart)
+        AND NOT bPrevSimStart;
+
+    bSimStopEdge :=
+        (GVL.bCycleStopCmd OR bStop)
+        AND NOT bPrevSimStop;
+
+    bPrevSimStart := GVL.bCycleStartCmd OR bStart;
+    bPrevSimStop := GVL.bCycleStopCmd OR bStop;
+
+    //********************************************
+    // Sekwencja sygnałów
+    //
+    // 0 - oczekiwanie na Start
+    // 1 - Start i Stop aktywne przez 30 sekund
+    // 2 - Start aktywny, Stop nieaktywny
+    //
+    // Stop zewnętrzny ma priorytet.
+
+    IF bSimStopEdge THEN
+        nSimState := 0;
+        bSimCycleActive := FALSE;
+        GVL_DB.stTrigersData.bCycleStartCmd := FALSE;
+        GVL_DB.stTrigersData.bCycleStopCmd := TRUE;
+
+        fbSimDelay(IN := FALSE, PT := T#30S);
+
+    ELSE
+
+        CASE nSimState OF
+
+            0:
+                GVL_DB.stTrigersData.bCycleStartCmd := FALSE;
+                GVL_DB.stTrigersData.bCycleStopCmd := FALSE;
+
+                IF bSimStartEdge THEN
+                    GVL_DB.stTrigersData.bCycleStartCmd := TRUE;
+                    GVL_DB.stTrigersData.bCycleStopCmd := TRUE;
+
+                    nSimState := 1;
+                END_IF;
+
+            1:
+                GVL_DB.stTrigersData.bCycleStartCmd := TRUE;
+                GVL_DB.stTrigersData.bCycleStopCmd := TRUE;
+
+                fbSimDelay(IN := TRUE, PT := T#1S);
+
+                IF fbSimDelay.Q THEN
+                    fbSimDelay(IN := FALSE);
+
+                    GVL_DB.stTrigersData.bCycleStartCmd := TRUE;
+                    GVL_DB.stTrigersData.bCycleStopCmd := FALSE;
+
+                    nSimState := 2;
+                    nSimCycleCount := nSimCycleCount + 1;
+                END_IF;
+
+            2:
+                GVL_DB.stTrigersData.bCycleStartCmd := TRUE;
+                GVL_DB.stTrigersData.bCycleStopCmd := FALSE;
+
+                // Zwolnienie zewnętrznego Start kończy cykl
+                IF NOT (GVL.bCycleStartCmd OR bStart) THEN
+                    GVL_DB.stTrigersData.bCycleStartCmd := FALSE;
+                    GVL_DB.stTrigersData.bCycleStopCmd := FALSE;
+
+                    nSimState := 0;
+                END_IF;
+
+        ELSE
+            nSimState := 0;
+
+        END_CASE;
+
+    END_IF;
+
+    //********************************************
+    // AutoMode i opis trybu
+
+    bSimCycleActive := GVL_DB.stTrigersData.bCycleStartCmd AND NOT GVL_DB.stTrigersData.bCycleStopCmd;
+    GVL_DB.stTrigersData.bAutoMode := bSimCycleActive;
+
+    IF GVL_DB.stTrigersData.bAutoMode THEN
+        GVL_DB.stTrigersData.sHMI_Mode := 'Auto mode ';
+    ELSE
+        GVL_DB.stTrigersData.sHMI_Mode := 'Manual mode';
+    END_IF;
+
+    //********************************************
+    // ControlOn:
+    // po 5 cyklach OFF na 30 sekund, następnie ON
+
+    IF (nSimCycleCount >= 5) AND NOT bControlOff THEN
+        bControlOff := TRUE;
+        fbControlDelay(IN := FALSE, PT := T#30S);
+    END_IF;
+
+    IF bControlOff THEN
+        GVL_DB.stTrigersData.bControlOn := FALSE;
+
+        fbControlDelay(IN := TRUE, PT := T#30S);
+
+        IF fbControlDelay.Q THEN
+            bControlOff := FALSE;
+            nSimCycleCount := 0;
+
+            GVL_DB.stTrigersData.bControlOn := TRUE;
+
+            fbControlDelay(IN := FALSE, PT := T#30S);
+        END_IF;
+    ELSE
+        GVL_DB.stTrigersData.bControlOn := TRUE;
+    END_IF;
+
+    //********************************************
+    // Symulacja narastania wartości
+
+    IF bSimCycleActive THEN
+
+        nSimStep := nSimStep + 1;
+
+        GVL_DB.stRtData.fScaling_PressureAI_PV_Value :=
+            GVL_DB.stRtData.fScaling_PressureAI_PV_Value
+            + LREAL_TO_REAL(0.001 + UDINT_TO_LREAL(nSimStep MOD 7) * 0.0007);
+
+        GVL_DB.stRtData.fScaling_Pos_PosZeroed_mm :=
+            GVL_DB.stRtData.fScaling_Pos_PosZeroed_mm
+            + LREAL_TO_REAL(0.002 + UDINT_TO_LREAL(nSimStep MOD 5) * 0.0013);
+
+        GVL_DB.stRtData.fForceMode_Force_kN :=
+            GVL_DB.stRtData.fForceMode_Force_kN
+            + LREAL_TO_REAL(0.01 + UDINT_TO_LREAL(nSimStep MOD 9) * 0.006);
+
+        GVL_DB.stRtData.fForceMode_Force_t :=
+            GVL_DB.stRtData.fForceMode_Force_t
+            + LREAL_TO_REAL(0.002 + UDINT_TO_LREAL(nSimStep MOD 6) * 0.0015);
+
+        GVL_DB.stRtData.fHMI_PositionStart :=
+            GVL_DB.stRtData.fHMI_PositionStart
+            + LREAL_TO_REAL(0.001 + UDINT_TO_LREAL(nSimStep MOD 4) * 0.001);
+
+        GVL_DB.stRtData.fHMI_PositionBreak :=
+            GVL_DB.stRtData.fHMI_PositionBreak
+            + LREAL_TO_REAL(0.003 + UDINT_TO_LREAL(nSimStep MOD 8) * 0.001);
+
+        GVL_DB.stRtData.fHMI_PressBreak :=
+            GVL_DB.stRtData.fHMI_PressBreak
+            + LREAL_TO_REAL(0.01 + UDINT_TO_LREAL(nSimStep MOD 7) * 0.008);
+
+        GVL_DB.stRtData.fHMI_Force_t_Break :=
+            GVL_DB.stRtData.fHMI_Force_t_Break
+            + LREAL_TO_REAL(0.002 + UDINT_TO_LREAL(nSimStep MOD 5) * 0.002);
+
+        GVL_DB.stRtData.fHMI_Force_kN_Break :=
+            GVL_DB.stRtData.fHMI_Force_kN_Break
+            + LREAL_TO_REAL(0.02 + UDINT_TO_LREAL(nSimStep MOD 6) * 0.015);
+
+        GVL_DB.stRtData.fHMI_Force_N :=
+            GVL_DB.stRtData.fHMI_Force_N
+            + LREAL_TO_REAL(1.0 + UDINT_TO_LREAL(nSimStep MOD 9) * 0.8);
+
+        GVL_DB.stRtData.fHMI_Force_kg :=
+            GVL_DB.stRtData.fHMI_Force_kg
+            + LREAL_TO_REAL(0.1 + UDINT_TO_LREAL(nSimStep MOD 7) * 0.12);
+
+    END_IF;
+ELSIF bSymulacjaMode = 2 THEN
+	 
+    GVL_DB.stTrigersData.sHMI_Mode := sTempsHMI_Mode;
+    //GVL_DB.stTrigersData.arrEHS_EventVisu := GVL_EHS.arrEventVisu;
+    GVL_DB.stTrigersData.bControlOn := bTempsControlOn;
+    GVL_DB.stTrigersData.bCycleStartCmd := bTempsCycleStartCmd;
+    GVL_DB.stTrigersData.bCycleStopCmd := bTempsCycleStopCmd;
+    GVL_DB.stTrigersData.bAutoMode := bTempsAutoMode;
+    GVL_DB.stTrigersData.bBreakthroughDetection_2_BreakDetected := bTempsBreakthroughDetection_2_BreakDetected;
+
+	bSimCycleActive := bTempsAutoMode And bTempsCycleStartCmd;
+    IF bSimCycleActive THEN
+
+        nSimStep := nSimStep + 1;
+
+        GVL_DB.stRtData.fScaling_PressureAI_PV_Value :=
+            GVL_DB.stRtData.fScaling_PressureAI_PV_Value
+            + LREAL_TO_REAL(0.001 + UDINT_TO_LREAL(nSimStep MOD 7) * 0.0007);
+
+        GVL_DB.stRtData.fScaling_Pos_PosZeroed_mm :=
+            GVL_DB.stRtData.fScaling_Pos_PosZeroed_mm
+            + LREAL_TO_REAL(0.002 + UDINT_TO_LREAL(nSimStep MOD 5) * 0.0013);
+
+        GVL_DB.stRtData.fForceMode_Force_kN :=
+            GVL_DB.stRtData.fForceMode_Force_kN
+            + LREAL_TO_REAL(0.01 + UDINT_TO_LREAL(nSimStep MOD 9) * 0.006);
+
+        GVL_DB.stRtData.fForceMode_Force_t :=
+            GVL_DB.stRtData.fForceMode_Force_t
+            + LREAL_TO_REAL(0.002 + UDINT_TO_LREAL(nSimStep MOD 6) * 0.0015);
+
+        GVL_DB.stRtData.fHMI_PositionStart :=
+            GVL_DB.stRtData.fHMI_PositionStart
+            + LREAL_TO_REAL(0.001 + UDINT_TO_LREAL(nSimStep MOD 4) * 0.001);
+
+        GVL_DB.stRtData.fHMI_PositionBreak :=
+            GVL_DB.stRtData.fHMI_PositionBreak
+            + LREAL_TO_REAL(0.003 + UDINT_TO_LREAL(nSimStep MOD 8) * 0.001);
+
+        GVL_DB.stRtData.fHMI_PressBreak :=
+            GVL_DB.stRtData.fHMI_PressBreak
+            + LREAL_TO_REAL(0.01 + UDINT_TO_LREAL(nSimStep MOD 7) * 0.008);
+
+        GVL_DB.stRtData.fHMI_Force_t_Break :=
+            GVL_DB.stRtData.fHMI_Force_t_Break
+            + LREAL_TO_REAL(0.002 + UDINT_TO_LREAL(nSimStep MOD 5) * 0.002);
+
+        GVL_DB.stRtData.fHMI_Force_kN_Break :=
+            GVL_DB.stRtData.fHMI_Force_kN_Break
+            + LREAL_TO_REAL(0.02 + UDINT_TO_LREAL(nSimStep MOD 6) * 0.015);
+
+        GVL_DB.stRtData.fHMI_Force_N :=
+            GVL_DB.stRtData.fHMI_Force_N
+            + LREAL_TO_REAL(1.0 + UDINT_TO_LREAL(nSimStep MOD 9) * 0.8);
+
+        GVL_DB.stRtData.fHMI_Force_kg :=
+            GVL_DB.stRtData.fHMI_Force_kg
+            + LREAL_TO_REAL(0.1 + UDINT_TO_LREAL(nSimStep MOD 7) * 0.12);
+
+    END_IF;	
+ELSE
+    //********************************************
+    // stRtData : ST_RT_StrengthAnalysis
+
+    GVL_DB.stRtData.dtActTime := GVL_EHS.dtActTime;
+    GVL_DB.stRtData.fHMI_Force_N := GVL_HMI.Force_N / 1000;
+    GVL_DB.stRtData.fHMI_Force_kg := GVL_HMI.Force_kg / 1000;
+
+    GVL_DB.stRtData.fScaling_PressureAI_PV_Value := Scaling.PressureAI.PV_Value;
+    GVL_DB.stRtData.fScaling_Pos_PosZeroed_mm := Scaling.fbPos.PosZeroed_mm;
+
+    GVL_DB.stRtData.fForceMode_Force_kN := GVL_ForceMode.nForce_kN;
+    GVL_DB.stRtData.fForceMode_Force_t := GVL_ForceMode.nForce_t;
+
+    GVL_DB.stRtData.fHMI_PositionStart := GVL_HMI.nPositionStart;
+    GVL_DB.stRtData.fHMI_PositionBreak := GVL_HMI.nPositionBreak;
+    GVL_DB.stRtData.fHMI_PressBreak := GVL_HMI.nPressBreak;
+    GVL_DB.stRtData.fHMI_Force_t_Break := GVL_HMI.nForce_t_Break;
+    GVL_DB.stRtData.fHMI_Force_kN_Break := GVL_HMI.nForce_kN_Break;
+
+    //********************************************
+    // stStaticData : ST_STATIC_StrengthAnalysis
+
+    GVL_DB.stStaticData.fHMI_PressureSetpointManual := GVL_HMI.nPressureSetpointManual;
+    GVL_DB.stStaticData.fHMI_PressureSetpointAutoMax := GVL_HMI.PressureSetpointAutoMax;
+    GVL_DB.stStaticData.fHMI_PressureSetpointAutoMin := GVL_HMI.PressureSetpointAutoMin;
+    GVL_DB.stStaticData.nHMI_Ramp_Time := GVL_HMI.nRamp_Time;
+    GVL_DB.stStaticData.fHMI_BreakDeltaPress := GVL_HMI.nBreakDeltaPress;
+    GVL_DB.stStaticData.fHMI_BreakDeltaPos := GVL_HMI.nBreakDeltaPos;
+    GVL_DB.stStaticData.nHMI_Break_Time_Window := GVL_HMI.nBreak_Time_Window;
+    GVL_DB.stStaticData.fScaling_Pos_PosZeroed_mm := Scaling.fbPos.PosZeroed_mm;
+    GVL_DB.stStaticData.bForceMode_ForceRange100t := GVL_ForceMode.bForceRange100t;
+
+    //********************************************
+    // stTrigersData : ST_TRIGERS_StrengthAnalysis
+
+    GVL_DB.stTrigersData.sHMI_Mode := GVL_HMI.sMode;
+    //GVL_DB.stTrigersData.arrEHS_EventVisu := GVL_EHS.arrEventVisu;
+    GVL_DB.stTrigersData.bControlOn := GVL.bControlOn;
+    GVL_DB.stTrigersData.bCycleStartCmd := GVL.bCycleStartCmd;
+    GVL_DB.stTrigersData.bCycleStopCmd := GVL.bCycleStopCmd;
+    GVL_DB.stTrigersData.bAutoMode := Mode.bAutoMode;
+    GVL_DB.stTrigersData.bBreakthroughDetection_2_BreakDetected := BreakthroughDetection_2.bBreakDetected;
+
+END_IF;
+]]></ST>
+    </Implementation>
+    <LineIds Name="DB_Map">
+      <LineId Id="244" Count="25" />
+      <LineId Id="271" Count="93" />
+      <LineId Id="368" Count="86" />
+      <LineId Id="529" Count="0" />
+      <LineId Id="532" Count="5" />
+      <LineId Id="531" Count="0" />
+      <LineId Id="545" Count="49" />
+      <LineId Id="538" Count="0" />
+      <LineId Id="455" Count="0" />
+      <LineId Id="457" Count="41" />
+      <LineId Id="500" Count="1" />
+      <LineId Id="34" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

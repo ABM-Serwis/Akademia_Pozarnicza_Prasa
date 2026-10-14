@@ -1,0 +1,34 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.16">
+  <POU Name="Zabezpieczenie_Tensometru" Id="{b9123738-7943-47bb-8681-d725bfd74512}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM Zabezpieczenie_Tensometru
+VAR
+	bPrzeciazenieTensometru: BOOL;
+	rtOverload: R_TRIG;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF GVL_ForceMode.bForceRange100t=0 THEN
+	IF GVL_ForceMode.nForce_t>51 THEN 
+		bPrzeciazenieTensometru:=TRUE;
+	END_IF
+END_IF
+IF GVL_ForceMode.bForceRange100t=1 THEN
+	IF GVL_ForceMode.nForce_t>101 THEN 
+		bPrzeciazenieTensometru:=TRUE;
+	END_IF
+END_IF
+
+rtOverload(CLK:=bPrzeciazenieTensometru , Q=> );]]></ST>
+    </Implementation>
+    <LineIds Name="Zabezpieczenie_Tensometru">
+      <LineId Id="5" Count="1" />
+      <LineId Id="8" Count="1" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="12" Count="3" />
+      <LineId Id="11" Count="0" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="16" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

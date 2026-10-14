@@ -193,7 +193,7 @@ fbPressureToForce(
 //		SKALOWANIE WEJŚCIA 0-10V NA vOLTY
 fbFB_ScaleTo0_10V(
 	InRaw:=IO_Map.AI3 , 
-	InMin:=0 , 
+	InMin:=4 , 
 	InMax:=32767 , 
 	Out_V=>GVL_ForceMode.nForceInput_V , 
 	OutPercent=> , 

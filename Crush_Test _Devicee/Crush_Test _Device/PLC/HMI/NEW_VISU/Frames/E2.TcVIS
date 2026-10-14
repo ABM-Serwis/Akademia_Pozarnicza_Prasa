@@ -1033,7 +1033,7 @@
                     </o>
                     <o>
                       <v n="Id">390574330L</v>
-                      <v n="Value">"Okno czasowe:  %i [ms]"</v>
+                      <v n="Value">"Czas próbkowania :  %i [ms]"</v>
                     </o>
                     <o>
                       <v n="Id">2477733581L</v>
@@ -1045,7 +1045,7 @@
                     </o>
                     <o>
                       <v n="Id">823443203L</v>
-                      <v n="Value">"10"</v>
+                      <v n="Value">"492"</v>
                     </o>
                   </l>
                 </o>
@@ -1573,12 +1573,12 @@
                       <v n="Value">""</v>
                     </o>
                     <o>
-                      <v n="Id">823443203L</v>
-                      <v n="Value">"876"</v>
-                    </o>
-                    <o>
                       <v n="Id">2496894244L</v>
                       <v n="Value">"bLedCycleOn"</v>
+                    </o>
+                    <o>
+                      <v n="Id">823443203L</v>
+                      <v n="Value">"876"</v>
                     </o>
                   </l>
                 </o>

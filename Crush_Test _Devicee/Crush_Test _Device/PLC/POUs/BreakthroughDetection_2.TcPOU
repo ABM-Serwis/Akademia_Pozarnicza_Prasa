@@ -26,7 +26,7 @@ END_VAR
 	Valve_Proportional wraca w barach — skalowanie 0..400 bar na 4..20 mA jest bez zmian.
 *)
 fbBreakDetect(
-	Enable							:= bControlOn AND bEstopOk AND bCycleStopCmd,
+	Enable							:= bControlOn AND bEstopOk AND bCycleStopCmd OR Zabezpieczenie_Tensometru.rtOverload.Q,
 	Mode_Manual						:= Mode.bManualMode,
 	Cmd_Up_Manual					:= bCylinderCmdUp OR rtAutoStart.Q,
 	Cmd_Down_Manual					:= fbDownLatch.Out,
@@ -138,11 +138,13 @@ ELSIF bBreakDetected THEN
 	GVL_HMI.Force_kg_2 := GVL_HMI.Force_kg;
 	GVL_HMI.Force_N_2 := GVL_HMI.Force_N;
 END_IF
-]]></ST>
+//=========================================================
+GVL_HMI.tBreak_Time_Window:=INT_TO_TIME(GVL_HMI.nBreak_Time_Window);]]></ST>
     </Implementation>
     <LineIds Name="BreakthroughDetection_2">
       <LineId Id="3" Count="122" />
       <LineId Id="2" Count="0" />
+      <LineId Id="138" Count="0" />
     </LineIds>
   </POU>
 </TcPlcObject>

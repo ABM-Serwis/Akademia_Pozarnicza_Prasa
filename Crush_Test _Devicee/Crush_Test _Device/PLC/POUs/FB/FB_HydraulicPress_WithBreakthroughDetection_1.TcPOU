@@ -457,8 +457,8 @@ IF (State = 1) AND (NOT Mode_Force OR Force_SensorOk) THEN
     Press_Delta := Press_Prev - rPv;   // spadek = dodatnia wartość
     Pos_Delta   := Position_Actual - Pos_Prev;
 
-    IF (Press_Delta > rDeltaLim) AND (Pos_Delta > Breakthrough_DeltaPos) THEN
-        Timer_Breakthrough(IN := TRUE, PT := Breakthrough_TimeWindow);
+    IF (Press_Delta > rDeltaLim) (*AND (Pos_Delta > Breakthrough_DeltaPos)*) THEN
+        Timer_Breakthrough(IN := TRUE, PT := T#5MS);
         IF Timer_Breakthrough.Q THEN
             Breakthrough_Trigger := TRUE;
             IF Mode_Force THEN
