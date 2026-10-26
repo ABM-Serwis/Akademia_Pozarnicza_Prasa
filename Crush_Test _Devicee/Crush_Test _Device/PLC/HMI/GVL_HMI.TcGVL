@@ -33,6 +33,20 @@ VAR_GLOBAL PERSISTENT
 	PressureSetpointAutoMax: LREAL;
 	// czas rampy Auto[ms]
 	nRamp_Time: DINT:=120;
+	nCzasSprawdzania: INT;
+	nOpoznieniePrzebicia: INT;
+	(* ===== Drugi setpoint — siła [t] =====
+	   Działa w każdym cyklu, obok setpointów ciśnienia.
+	   0 = brak limitu siły (zawór prowadzi samo ciśnienie).
+	   Wartość wpisana powyżej wybranego zakresu jest obcinana (patrz *_Eff).
+	*)
+	nForceSetpointManual		: REAL := 0.0;	(* t, tryb ręczny *)
+	nForceSetpointAutoMin		: REAL := 0.0;	(* t, auto *)
+	nForceSetpointAutoMax		: REAL := 0.0;	(* t, auto *)
+	nBreakDeltaForce			: REAL := 0.0;	(* t, spadek siły w oknie czasu = przebicie *)
+	tCzasSprawdzania			: TIME := T#100MS;	(* okres próbki do spadku ciśnienia, siły i wzrostu pozycji *)
+	tOpoznieniePrzebicia		: TIME := T#500MS;	(* po starcie ruchu w górę tyle nie sprawdzamy przebicia — wahnięcie ciśnienia *)
+
 END_VAR
 VAR_GLOBAL CONSTANT
 	// Czasem w HMI trzeba podać kolor w wersji 16 

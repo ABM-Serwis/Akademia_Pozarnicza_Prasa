@@ -121,6 +121,9 @@
     <Compile Include="POUs\BreakthroughDetection_2.TcPOU">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="POUs\DB_Map.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="POUs\DUTs\DB\ST_RT_StrengthAnalysis.TcDUT">
       <SubType>Code</SubType>
     </Compile>
@@ -193,9 +196,6 @@
     <Compile Include="POUs\Mode.TcPOU">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="POUs\POUs\DB_Map.TcPOU">
-      <SubType>Code</SubType>
-    </Compile>
     <Compile Include="POUs\POUs\Events\F_RESET_Event.TcPOU">
       <SubType>Code</SubType>
     </Compile>
@@ -220,9 +220,6 @@
     <Compile Include="POUs\POUs\Recipe\RecipeManagement.TcPOU">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="POUs\POUs\Zabezpieczenie_Tensometru.TcPOU">
-      <SubType>Code</SubType>
-    </Compile>
     <Compile Include="POUs\Scaling.TcPOU">
       <SubType>Code</SubType>
     </Compile>
@@ -230,6 +227,9 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="POUs\SavePresistent.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Zabezpieczenie_Tensometru.TcPOU">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="VISUs\Visualization Manager.TcVMO">

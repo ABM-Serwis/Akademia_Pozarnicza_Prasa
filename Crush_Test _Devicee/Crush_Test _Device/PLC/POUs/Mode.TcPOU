@@ -18,7 +18,7 @@ END_VAR
     bMoveUp     := .bCylinderCmdUp,
     bMoveDown   := .bCylinderCmdDown,
     bCycleStart := .bCycleStartCmd,
-    bCycleStop  := .bCycleStopCmd AND NOT BreakthroughDetection_2.bBreakDetected,
+    bCycleStop  := .bCycleStopCmd AND NOT BreakthroughDetection_2.bBreakDetected AND NOT  Zabezpieczenie_Tensometru.rtOverload.Q,
     tAutoDelay  := T#1S   // np. 1 sekunda opóźnienia
 );
 

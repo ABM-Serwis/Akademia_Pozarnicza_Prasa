@@ -3,97 +3,95 @@
   <POU Name="BreakthroughDetection_2" Id="{5304bb06-45db-483e-aad0-f4a4e45f88c7}" SpecialFunc="None">
     <Declaration><![CDATA[PROGRAM BreakthroughDetection_2
 VAR
-	fbBreakDetect		: FB_HydraulicPress_WithBreakthroughDetection_1;
-	rtAutoStart			: R_TRIG;
-	rtBreak				: R_TRIG;
-	fbPvTo420mA			: FB_PV_To4_20mA;
-	fb4_20_to_0_10V		: FB_4_20mA_To_0_10V;
-	fbDownLatch			: FB_LongPressLatch;
-	TempOut				: REAL;
-	bBreakDetected		: BOOL;
-	rPressAtBreak		: REAL;
-END_VAR
-]]></Declaration>
+	fbBreakDetect		: FB_HydraulicPress_WithBreakthroughDetection_1;	// Regulacja zaworu (bar) oraz detekcja przebicia od ciśnienia i siły
+	rtAutoStart			: R_TRIG;	// Zbocze startu cyklu automatycznego, z mode.fbMode.bAutoDelayed
+	rtBreak				: R_TRIG;	// Zbocze przebicia — w tym skanie zatrzaskujemy siłę przebicia na HMI
+	fbPvTo420mA			: FB_PV_To4_20mA;	// Komenda zaworu 0…400 bar na prąd 4…20 mA
+	fb4_20_to_0_10V		: FB_4_20mA_To_0_10V;	// Prąd 4…20 mA na napięcie 0…10 V wyjścia analogowego
+	fbDownLatch			: FB_LongPressLatch;	// Przytrzymanie przycisku „dół”; po 3 s ruch w dół zostaje zatrzaśnięty
+	TempOut				: REAL;	// Komenda zaworu z bloku [bar], zanim pójdzie na przetwornik 4…20 mA
+	bBreakDetected		: BOOL;	// TRUE, gdy blok wykrył przebicie (Breakthrough_Detected)
+	rPressAtBreak		: REAL;	// Ciśnienie w chwili przebicia [bar]; kopiowane do GVL_HMI.nPressBreak
+	bBreakDetected2: BOOL;
+	tonBrake: TON;
+END_VAR]]></Declaration>
     <Implementation>
       <ST><![CDATA[
 (*
-	Ciśnienie albo siła wybiera GVL_ForceMode.bModeForce.
+	Ciśnienie i siła pracują razem. Przełącznika trybu nie ma.
 	Zakres tensometru: GVL_ForceMode.bForceRange100t (FALSE = 50 t, TRUE = 100 t).
 	Napięcie celi: GVL_ForceMode.nForceInput_V, kanał 0–10 V, roboczo 0–2,5 V.
 
-	Setpointy ciśnienia zostają na swoich wejściach.
-	Drugi setpoint (siła) idzie na Force_Setpoint_*.
+	Setpointy ciśnienia zostają na swoich wejściach, w barach.
+	Nastawy siły są w kN i idą z GVL_HMI na Force_Setpoint_* oraz Breakthrough_DeltaForce.
+	1 t = 9,80665 kN. Zakres 50 t to 490,33 kN, zakres 100 t to 980,67 kN.
 	Valve_Proportional wraca w barach — skalowanie 0..400 bar na 4..20 mA jest bez zmian.
+	Siła = 0 nie ogranicza zaworu. Zły tensometr wyłącza tylko limit i człon przebicia od siły.
 *)
 fbBreakDetect(
-	Enable							:= bControlOn AND bEstopOk AND bCycleStopCmd OR Zabezpieczenie_Tensometru.rtOverload.Q,
-	Mode_Manual						:= Mode.bManualMode,
-	Cmd_Up_Manual					:= bCylinderCmdUp OR rtAutoStart.Q,
-	Cmd_Down_Manual					:= fbDownLatch.Out,
-	Pressure_Setpoint_Manual		:= GVL_HMI.nPressureSetpointManual,
-	Pressure_Min_Auto				:= GVL_HMI.PressureSetpointAutoMin,
-	Pressure_Max_Auto				:= GVL_HMI.PressureSetpointAutoMax,
-	Position_Actual					:= Scaling.fbPos.PosZeroed_mm,
-	Pressure_Actual					:= Scaling.PressureAI.PV_Value,
-	Breakthrough_DeltaPress			:= GVL_HMI.nBreakDeltaPress,
-	Breakthrough_DeltaPos			:= GVL_HMI.nBreakDeltaPos,
-	Breakthrough_TimeWindow			:= GVL_HMI.tBreak_Time_Window,
-	Ramp_Time						:= TO_TIME((GVL_HMI.nRamp_Time) * 1000),
-	Mode_Force						:= GVL_ForceMode.bModeForce,
-	Force_Setpoint_Manual			:= GVL_ForceMode.nForceSetpointManual,
-	Force_Min_Auto					:= GVL_ForceMode.nForceSetpointAutoMin,
-	Force_Max_Auto					:= GVL_ForceMode.nForceSetpointAutoMax,
-	Force_Input_V					:= GVL_ForceMode.nForceInput_V,
-	Force_Range_100t				:= GVL_ForceMode.bForceRange100t,
-	Breakthrough_DeltaForce			:= GVL_ForceMode.nBreakDeltaForce,
-	Valve_Proportional				=> TempOut,
-	Coil_Up							=> bCylinderValveUp,
-	Coil_Down						=> bCylinderValveDown,
-	Valve_Relief					=> bReliefValveOn,
-	Active							=> ,
-	Auto_Active						=> bLedCycleOn,
-	Breakthrough_Detected			=> bBreakDetected,
-	Press_At_Break					=> rPressAtBreak,
-	Pos_At_Break					=> GVL_HMI.nPositionBreak,
-	Pos_At_Start					=> GVL_HMI.nPositionStart,
-	Alarm							=> ,
-	Force_Actual_t					=> GVL_ForceMode.nForce_t,
-	Force_Actual_kg					=> GVL_ForceMode.nForce_kg,
-	Force_Actual_N					=> GVL_ForceMode.nForce_N,
-	Force_Actual_kN					=> GVL_ForceMode.nForce_kN,
-	Force_pct						=> GVL_ForceMode.nForce_pct,
-	Force_FullScale_t				=> GVL_ForceMode.nForceFullScale_t,
-	Force_At_Break					=> ,
-	Force_At_Break_kg				=> ,
-	Force_At_Break_N				=> ,
-	Force_At_Break_kN				=> ,
-	Force_SensorOk					=> GVL_ForceMode.bForceSensorOk,
-	Force_Overrange					=> GVL_ForceMode.bForceOverrange,
-	Force_Underrange				=> GVL_ForceMode.bForceUnderrange,
-	Force_SetpointLimited			=> GVL_ForceMode.bForceSetpointLimited,
-	Force_CfgFault					=> GVL_ForceMode.bForceCfgFault,
-	Force_Target					=> GVL_ForceMode.nForce_Target,
-	Force_Setpoint_Manual_Eff		=> GVL_ForceMode.nForceSetpointManual_Eff,
-	Force_Min_Auto_Eff				=> GVL_ForceMode.nForceSetpointAutoMin_Eff,
-	Force_Max_Auto_Eff				=> GVL_ForceMode.nForceSetpointAutoMax_Eff,
-	Breakthrough_DeltaForce_Eff		=> GVL_ForceMode.nBreakDeltaForce_Eff,
-	Motion_Hold						=> GVL_ForceMode.bMotionHold);
+	Enable							:= bControlOn AND bEstopOk AND bCycleStopCmd ,	// Zezwolenie: sterowanie włączone, E-stop sprawny, brak stopu cyklu
+	Mode_Manual						:= Mode.bManualMode,	// TRUE = ręczny, FALSE = automat
+	Cmd_Up_Manual					:= (bCylinderCmdUp OR rtAutoStart.Q) AND NOT Zabezpieczenie_Tensometru.bPrzeciazenieTensometru,	// Przycisk góra albo impuls startu automatycznego
+	Cmd_Down_Manual					:= fbDownLatch.Out,	// Przycisk dół po zatrzaśnięciu długiego przytrzymania
+	Pressure_Setpoint_Manual		:= GVL_HMI.nPressureSetpointManual,	// Nastawa ciśnienia w ręcznym [bar]
+	Pressure_Min_Auto				:= GVL_HMI.PressureSetpointAutoMin,	// Ciśnienie początkowe rampy auto [bar]
+	Pressure_Max_Auto				:= GVL_HMI.PressureSetpointAutoMax,	// Ciśnienie docelowe rampy auto [bar]
+	Position_Actual					:= Scaling.fbPos.PosZeroed_mm,	// Pozycja tłoczyska po zerowaniu [mm]
+	Pressure_Actual					:= Scaling.PressureAI.PV_Value,	// Ciśnienie rzeczywiste [bar]
+	Breakthrough_DeltaPress			:= GVL_HMI.nBreakDeltaPress,	// Próg spadku ciśnienia [bar]
+	Breakthrough_DeltaPos			:= GVL_HMI.nBreakDeltaPos,	// Próg wzrostu pozycji [mm]
+	Breakthrough_TimeWindow			:= TO_TIME(10),//(GVL_HMI.nBreak_Time_Window),	// Jak długo warunek przebicia musi się utrzymać
+	tCzasSprawdzania				:= TO_TIME(GVL_HMI.nCzasSprawdzania),	// Okres próbki ciśnienia, siły i pozycji
+	tOpoznieniePrzebicia			:= TO_TIME(GVL_HMI.nOpoznieniePrzebicia),	// Zwłoka po starcie ruchu w górę, zanim sprawdzamy przebicie
+	Ramp_Time						:= TO_TIME((GVL_HMI.nRamp_Time) * 1000),	// Czas rampy auto; na HMI sekundy, do bloku idą milisekundy
+	Force_Setpoint_Manual			:= GVL_HMI.nForceSetpointManual,	// Nastawa siły w ręcznym [kN]; 0 = brak limitu siły
+	Force_Min_Auto					:= GVL_HMI.nForceSetpointAutoMin,	// Siła początkowa rampy auto [kN]
+	Force_Max_Auto					:= GVL_HMI.nForceSetpointAutoMax,	// Siła docelowa rampy auto [kN]; 0 = brak limitu siły
+	Force_Input_V					:= GVL_ForceMode.nForceInput_V,	// Napięcie tensometru [V]; kanał 0–10 V, roboczo 0–2,5 V
+	Force_Range_100t				:= GVL_ForceMode.bForceRange100t,	// FALSE = cela 50 t, TRUE = cela 100 t
+	Breakthrough_DeltaForce			:= GVL_HMI.nBreakDeltaForce,	// Próg spadku siły [kN]
+	Valve_Proportional				=> TempOut,	// Komenda zaworu [bar], dalej skalowana na 4…20 mA
+	Coil_Up							=> bCylinderValveUp,	// Cewka ruchu w górę
+	Coil_Down						=> bCylinderValveDown,	// Cewka ruchu w dół
+	Valve_Relief					=> bReliefValveOn,	// Zawór odciążający, otwarty tylko przy ruchu w górę
+	Active							=> ,	// Niepodłączone; niżej czytane jako fbBreakDetect.Active
+	Auto_Active						=> bLedCycleOn,	// Cykl automatyczny trwa, lampka cyklu
+	Breakthrough_Detected			=> bBreakDetected,	// Przebicie wykryte w tym skanie
+	Breakthrough_Armed				=> GVL_ForceMode.bPrzebicieUzbrojone,	// TRUE, gdy ruch w górę trwa i minęła zwłoka po starcie
+	Press_At_Break					=> rPressAtBreak,	// Ciśnienie w chwili przebicia [bar]
+	Pos_At_Break					=> GVL_HMI.nPositionBreak,	// Pozycja w chwili przebicia [mm]
+	Pos_At_Start					=> GVL_HMI.nPositionStart,	// Pozycja w chwili startu automatycznego [mm]
+	Alarm							=> ,	// Niepodłączone; alarm jest składany niżej do GVL_ForceMode.bAlarm
+	Force_Actual_t					=> GVL_ForceMode.nForce_t,	// Siła chwilowa [t]
+	Force_Actual_kg					=> GVL_ForceMode.nForce_kg,	// Siła chwilowa [kgf]
+	Force_Actual_N					=> GVL_ForceMode.nForce_N,	// Siła chwilowa [N]
+	Force_Actual_kN					=> GVL_ForceMode.nForce_kN,	// Siła chwilowa [kN]
+	Force_pct						=> GVL_ForceMode.nForce_pct,	// Siła jako procent wybranego zakresu
+	Force_FullScale_t				=> GVL_ForceMode.nForceFullScale_t,	// Pełna skala celi: 50 albo 100 t
+	Force_At_Break					=> ,	// Niepodłączone; [t] czytane z fbBreakDetect na zboczu przebicia
+	Force_At_Break_kg				=> ,	// Niepodłączone; [kgf] czytane z fbBreakDetect na zboczu przebicia
+	Force_At_Break_N				=> ,	// Niepodłączone; [N] czytane z fbBreakDetect na zboczu przebicia
+	Force_At_Break_kN				=> ,	// Niepodłączone; [kN] czytane z fbBreakDetect na zboczu przebicia
+	Force_SensorOk					=> GVL_ForceMode.bForceSensorOk,	// Tensometr w paśmie −0,05…2,55 V
+	Force_Overrange					=> GVL_ForceMode.bForceOverrange,	// Napięcie powyżej 2,55 V
+	Force_Underrange				=> GVL_ForceMode.bForceUnderrange,	// Napięcie poniżej −0,05 V
+	Force_SetpointLimited			=> GVL_ForceMode.bForceSetpointLimited,	// Nastawa siły obcięta do zakresu albo ujemna delta
+	Force_CfgFault					=> GVL_ForceMode.bForceCfgFault,	// Auto min siły większe od auto max
+	Force_Target					=> GVL_ForceMode.nForce_Target,	// Bieżące zadanie siły [kN]; 0 = limit siły wyłączony
+	Force_Setpoint_Manual_Eff		=> GVL_ForceMode.nForceSetpointManual_Eff,	// Nastawa ręczna siły po obcięciu do zakresu [kN]
+	Force_Min_Auto_Eff				=> GVL_ForceMode.nForceSetpointAutoMin_Eff,	// Auto min siły po obcięciu [kN]
+	Force_Max_Auto_Eff				=> GVL_ForceMode.nForceSetpointAutoMax_Eff,	// Auto max siły po obcięciu [kN]
+	Breakthrough_DeltaForce_Eff		=> GVL_ForceMode.nBreakDeltaForce_Eff,	// Próg spadku siły po obcięciu [kN]
+	Motion_Hold						=> GVL_ForceMode.bMotionHold);	// Zmiana zakresu 50/100 t w ruchu — puść przyciski
 
-// W trybie siły nie wpisujemy ton w pole ciśnienia przebicia.
-IF NOT GVL_ForceMode.bModeForce THEN
-	GVL_HMI.nPressBreak := rPressAtBreak;
-END_IF
+GVL_HMI.nPressBreak := rPressAtBreak;
 
-GVL_ForceMode.bForceInhibit := GVL_ForceMode.bModeForce AND NOT GVL_ForceMode.bForceSensorOk;
+// bForceInhibit = człon siły wyłączony (zły tensometr). Ruch od ciśnienia zostaje.
+GVL_ForceMode.bForceInhibit := NOT GVL_ForceMode.bForceSensorOk;
 GVL_ForceMode.bRegulatorActive := fbBreakDetect.Active;
-GVL_ForceMode.bAlarm := fbBreakDetect.Alarm OR (GVL_ForceMode.bModeForce AND GVL_ForceMode.bForceCfgFault);
-IF GVL_ForceMode.bModeForce THEN
-	GVL_ForceMode.nActiveSetpointManual := GVL_ForceMode.nForceSetpointManual_Eff;
-	GVL_ForceMode.nActiveActual := GVL_ForceMode.nForce_t;
-ELSE
-	GVL_ForceMode.nActiveSetpointManual := GVL_HMI.nPressureSetpointManual;
-	GVL_ForceMode.nActiveActual := Scaling.PressureAI.PV_Value;
-END_IF
+GVL_ForceMode.bAlarm := fbBreakDetect.Alarm OR GVL_ForceMode.bForceCfgFault OR GVL_ForceMode.bForceInhibit;
+GVL_ForceMode.nActiveSetpointManual := GVL_HMI.nPressureSetpointManual;
+GVL_ForceMode.nActiveActual := Scaling.PressureAI.PV_Value;
 
 //============================================================
 rtAutoStart(CLK:= mode.fbMode.bAutoDelayed, Q=> );
@@ -127,24 +125,30 @@ IF rtBreak.Q THEN
 	GVL_HMI.nForce_kN_Break := fbBreakDetect.Force_At_Break_kN;
 END_IF
 
-IF GVL_ForceMode.bModeForce THEN
-	GVL_HMI.Force_kg := GVL_ForceMode.nForce_kg;
-	GVL_HMI.Force_N := GVL_ForceMode.nForce_N;
-	IF rtBreak.Q THEN
-		GVL_HMI.Force_kg_2 := fbBreakDetect.Force_At_Break_kg;
-		GVL_HMI.Force_N_2 := fbBreakDetect.Force_At_Break_N;
-	END_IF
-ELSIF bBreakDetected THEN
-	GVL_HMI.Force_kg_2 := GVL_HMI.Force_kg;
-	GVL_HMI.Force_N_2 := GVL_HMI.Force_N;
+GVL_HMI.Force_kg := GVL_ForceMode.nForce_kg;
+GVL_HMI.Force_N := GVL_ForceMode.nForce_N;
+IF rtBreak.Q THEN
+	GVL_HMI.Force_kg_2 := fbBreakDetect.Force_At_Break_kg;
+	GVL_HMI.Force_N_2 := fbBreakDetect.Force_At_Break_N;
 END_IF
-//=========================================================
-GVL_HMI.tBreak_Time_Window:=INT_TO_TIME(GVL_HMI.nBreak_Time_Window);]]></ST>
+//==============================================================
+IF bBreakDetected THEN
+	bBreakDetected2:=TRUE;
+END_IF
+	tonBrake(IN:=bBreakDetected2 , PT:=T#300MS , Q=> , ET=> );
+IF 	tonBrake.q THEN
+	bBreakDetected2:=FALSE;
+END_IF]]></ST>
     </Implementation>
     <LineIds Name="BreakthroughDetection_2">
-      <LineId Id="3" Count="122" />
-      <LineId Id="2" Count="0" />
+      <LineId Id="3" Count="0" />
+      <LineId Id="457" Count="112" />
       <LineId Id="138" Count="0" />
+      <LineId Id="581" Count="3" />
+      <LineId Id="591" Count="0" />
+      <LineId Id="586" Count="0" />
+      <LineId Id="590" Count="0" />
+      <LineId Id="588" Count="0" />
     </LineIds>
   </POU>
 </TcPlcObject>

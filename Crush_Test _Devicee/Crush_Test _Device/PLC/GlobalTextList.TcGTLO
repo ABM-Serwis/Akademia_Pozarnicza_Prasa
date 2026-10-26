@@ -206,6 +206,41 @@
               <l n="LanguageTexts" t="ArrayList" />
             </o>
             <o>
+              <v n="TextID">"40"</v>
+              <v n="TextDefault">"Nastawa siły-AUTO-Max:  %.2f [bar]"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"885"</v>
+              <v n="TextDefault">"Nastawa siły-AUTO-Max:  %.2f [kN]"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"409"</v>
+              <v n="TextDefault">"Nastawa siły-AUTO-Min:  %.2f [bar]"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"344"</v>
+              <v n="TextDefault">"Nastawa siły-AUTO-Min:  %.2f [kN]"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"432"</v>
+              <v n="TextDefault">"Nastawa siły-Ręka:  %.2f [bar]"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"810"</v>
+              <v n="TextDefault">"Nastawa siły-Ręka:  %.2f [kN]"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"522"</v>
+              <v n="TextDefault">"Nastawa siły-Ręka:  %.2f []"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
               <v n="TextID">"404"</v>
               <v n="TextDefault">"Nazwa nowej receptury"</v>
               <l n="LanguageTexts" t="ArrayList" />
@@ -393,6 +428,16 @@ PŁUKANIA"</v>
             <o>
               <v n="TextID">"563"</v>
               <v n="TextDefault">"Spadek ciśnienia:  %.2f [bar]"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"489"</v>
+              <v n="TextDefault">"Spadek siły:  %.2f [bar]"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"481"</v>
+              <v n="TextDefault">"Spadek siły:  %.2f [kN]"</v>
               <l n="LanguageTexts" t="ArrayList" />
             </o>
             <o>
